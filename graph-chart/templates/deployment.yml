@@ -1,0 +1,29 @@
+{{- range $id, $if := .Values.interfaces }}
+  {{- if eq $if.type "br" }}
+---
+    {{- include "nfrouter.l2bridge" (dict "id" $id) }}
+  {{- end }}
+  {{- if eq $if.type "sriov" }}
+---
+    {{- include "nfrouter.sriov-vf" (dict "if" $if "id" $id) }}
+  {{- end }}
+  {{- if eq $if.type "memif" }}
+---
+    {{- include "nfrouter.memif" (dict "if" $if "id" $id) }}
+  {{- end }}
+{{- end }}
+---
+{{- include "nfrouter.interfaces-kustomization" .Values.interfaces }}
+---
+{{- include "nfrouter.configs-kustomization" .Values.services }}
+
+{{- range $id, $nf := .Values.services }}
+---
+  {{- include "nfrouter.nf-kustomize-patch" (dict "nf" $nf "id" $id) }}
+  {{- if hasKey $nf "files" }}
+---
+    {{- include "nfrouter.nf-files-configmap" (dict "id" $id "files" $nf.files) }}
+  {{- end }}
+{{- end }}
+---
+{{- include "nfrouter.kustomization" .Values.services }}
