@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: trex
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: trex
+  template:
+    metadata:
+      labels:
+        app: trex
+    spec:
+      containers:
+      - name: trex
+        image: desire6g/trex
+        imagePullPolicy: Never
+        securityContext:
+          privileged: true
+        command: [ "/bin/bash", "-c", "--" ]
+        args: [ "trap : TERM INT; sleep infinity & wait" ]
+        resources:
+          limits:
+            memory: 2Gi

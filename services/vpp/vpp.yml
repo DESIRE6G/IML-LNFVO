@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vpp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vpp
+  template:
+    metadata:
+      labels:
+        app: vpp
+    spec:
+      containers:
+      - name: vpp
+        image: ligato/vpp-base:23.02
+        imagePullPolicy: IfNotPresent
+        command: [ "/bin/bash", "-c", "--" ]
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - name: hugepage
+          mountPath: /hugepages
+        - name: shared-dir
+          mountPath: /var/lib/cni/usrspcni
+        resources:
+          limits:
+            hugepages-2Mi: 1Gi
+            memory: 1Gi
+          requests:
+            hugepages-2Mi: 1Gi
+            memory: 1Gi
+      volumes:
+      - name: hugepage
+        emptyDir:
+          medium: HugePages
+      - name: shared-dir
+        hostPath:
+          path: /run/vpp/vpp

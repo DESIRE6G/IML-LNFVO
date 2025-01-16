@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nfrouter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nfrouter
+  template:
+    metadata:
+      labels:
+        app: nfrouter
+    spec:
+      containers:
+      - name: nfrouter
+        image: desire6g/dpdk:latest
+        imagePullPolicy: Never
+        securityContext:
+          privileged: true
+        command: [ "/bin/bash", "-c", "--" ]
+        args: [ "trap : TERM INT; sleep infinity & wait" ]
+        volumeMounts:
+        - name: hugepage
+          mountPath: /hugepages
+        resources:
+          limits:
+            hugepages-2Mi: 1Gi
+            memory: 1Gi
+            nvidia.com/cx6dx_vf: '1'
+          requests:
+            hugepages-2Mi: 1Gi
+            memory: 1Gi
+            nvidia.com/cx6dx_vf: '1'
+      volumes:
+      - name: hugepage
+        emptyDir:
+          medium: HugePages
