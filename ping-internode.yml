@@ -1,0 +1,43 @@
+lnsd:
+  ## lnsd refers to a network service graph whose subgraph is described
+  ns-instance-id: "11223344-e2a8-4338-bc8c-be685548bad2"
+  ns:
+    name: "Ping demo"
+    id: "418420e3-e2a8-4338-bc8c-be685548bad2" # refers to the ns in the service catalog
+    vendor: "D6G"
+    descriptor-version: "1.0"
+    site-id: "d6g-001"
+
+    network-functions: []
+
+    application-functions:
+      - af-instance-id: "pkt-src"
+        af-id: "busybox"
+        af-name: "Pkt source"
+        af-version: "1.0"
+        af-node: "epyc1"
+
+      - af-instance-id: "pkt-dst"
+        af-id: "busybox"
+        af-name: "Pkt destination"
+        af-version: "1.0"
+        af-node: "epyc2"
+
+    site-connections: []
+    forwarding_graphs:
+      - member-graph-index: 1 # list of subgraphs/forwarding segments implemented by the given D6G site
+        graph-name: "test1"
+        links:
+          - id: "to-dst"
+            connection-points:
+            - member-connection-point-index: 1
+              member-if-id-ref: "pkt-src:1"
+            - member-connection-point-index: 2
+              member-if-id-ref: "pkt-dst:1"
+          - id: "to-src"
+            connection-points:
+            - member-connection-point-index: 1
+              member-if-id-ref: "pkt-dst:1"
+            - member-connection-point-index: 2
+              member-if-id-ref: "pkt-src:q"
+        e2e_delay_budget: "5ms"
