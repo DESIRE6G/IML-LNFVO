@@ -1,0 +1,190 @@
+pkg_info {
+  arch: "tna"
+}
+tables {
+  preamble {
+    id: 45211957
+    name: "NFIngress.ModeSelector"
+    alias: "ModeSelector"
+  }
+  match_fields {
+    id: 1
+    name: "ig_intr_md.ingress_port"
+    bitwidth: 9
+    match_type: EXACT
+  }
+  match_fields {
+    id: 2
+    name: "hdr.ipv6.$valid$"
+    bitwidth: 1
+    match_type: EXACT
+  }
+  action_refs {
+    id: 18210857
+  }
+  action_refs {
+    id: 18554338
+  }
+  action_refs {
+    id: 25267059
+  }
+  size: 1
+}
+tables {
+  preamble {
+    id: 43307893
+    name: "NFIngress.ServiceMapper"
+    alias: "ServiceMapper"
+  }
+  match_fields {
+    id: 1
+    name: "ig_md.direction"
+    bitwidth: 1
+    match_type: EXACT
+  }
+  match_fields {
+    id: 2
+    name: "ig_md.ueid"
+    bitwidth: 128
+    match_type: LPM
+  }
+  action_refs {
+    id: 29997964
+  }
+  action_refs {
+    id: 25267059
+  }
+  size: 256
+}
+tables {
+  preamble {
+    id: 46860165
+    name: "NFIngress.UEMapper"
+    alias: "UEMapper"
+  }
+  match_fields {
+    id: 1
+    name: "ig_md.ueid"
+    bitwidth: 128
+    match_type: EXACT
+  }
+  action_refs {
+    id: 31043289
+  }
+  action_refs {
+    id: 25267059
+  }
+  size: 10000
+}
+tables {
+  preamble {
+    id: 47795144
+    name: "NFIngress.IsHH"
+    alias: "IsHH"
+  }
+  match_fields {
+    id: 1
+    name: "ig_md.ueid"
+    bitwidth: 128
+    match_type: EXACT
+  }
+  action_refs {
+    id: 31736051
+  }
+  action_refs {
+    id: 21257015
+  }
+  size: 2000
+}
+actions {
+  preamble {
+    id: 21257015
+    name: "NoAction"
+    alias: "NoAction"
+    annotations: "@noWarn(\"unused\")"
+  }
+}
+actions {
+  preamble {
+    id: 25267059
+    name: "NFIngress.drop"
+    alias: "drop"
+  }
+}
+actions {
+  preamble {
+    id: 18554338
+    name: "NFIngress.setUpstreamMode"
+    alias: "setUpstreamMode"
+  }
+  params {
+    id: 1
+    name: "port"
+    bitwidth: 9
+  }
+}
+actions {
+  preamble {
+    id: 18210857
+    name: "NFIngress.setDownstreamMode"
+    alias: "setDownstreamMode"
+  }
+  params {
+    id: 1
+    name: "port"
+    bitwidth: 9
+  }
+}
+actions {
+  preamble {
+    id: 29997964
+    name: "NFIngress.setD6GService"
+    alias: "setD6GService"
+  }
+  params {
+    id: 1
+    name: "serviceId"
+    bitwidth: 16
+  }
+  params {
+    id: 2
+    name: "nextNF"
+    bitwidth: 16
+  }
+}
+actions {
+  preamble {
+    id: 31043289
+    name: "NFIngress.UEMapping"
+    alias: "UEMapping"
+  }
+  params {
+    id: 1
+    name: "locationId"
+    bitwidth: 16
+  }
+}
+actions {
+  preamble {
+    id: 31736051
+    name: "NFIngress.setHH"
+    alias: "setHH"
+  }
+}
+externs {
+  extern_type_id: 144
+  extern_type_name: "PortMetadata"
+  instances {
+    preamble {
+      id: 2421844258
+      name: "NFIngressParser.$PORT_METADATA"
+      alias: "$PORT_METADATA"
+    }
+    info {
+      type_url: "type.googleapis.com/barefoot.PortMetadata"
+      value: "ig_intr_md.ingress_port"
+    }
+  }
+}
+type_info {
+}
