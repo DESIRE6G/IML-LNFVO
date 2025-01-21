@@ -1,0 +1,20 @@
+--- ./l3fwd_lpm.c
++++ ./l3fwd_lpm.c
+@@ -50,10 +50,14 @@
+ 	uint32_t dst_ip = rte_be_to_cpu_32(ipv4_hdr->dst_addr);
+ 	uint32_t next_hop;
+
+-	if (rte_lpm_lookup(ipv4_l3fwd_lookup_struct, dst_ip, &next_hop) == 0)
+-		return next_hop;
+-	else
+-		return portid;
++        if (rte_lpm_lookup(ipv4_l3fwd_lookup_struct, dst_ip, &next_hop) == 0){
++                printf("S, src-port: %d, next_hop: %d\n", portid, next_hop);
++                return next_hop;
++        }
++        else{
++                printf("F, src-port: %d\n", portid);
++                return portid;
++        }
+ }
+ /* >8 End of performing LPM-based lookups. */
