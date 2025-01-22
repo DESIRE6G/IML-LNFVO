@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: nfrouter
-        image: desire6g/dpdk:latest
+        image: desire6g/nfrouter:latest
         imagePullPolicy: Never
         securityContext:
           privileged: true
