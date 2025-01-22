@@ -1,0 +1,68 @@
+---
+- name: Install python dependencies
+  become: true
+  ansible.builtin.apt:
+    name:
+      - python3-kubernetes
+      - python3-jsonpatch
+      - python3-yaml
+    state: present
+  when: inventory_hostname in groups['k8s_controls']
+
+- name: Install yq
+  become: true
+  ansible.builtin.shell:
+    creates: /usr/bin/yq
+    cmd: |
+      curl -L https://github.com/mikefarah/yq/releases/download/{{ yq_version }}/yq_linux_{{ arch }}.tar.gz | tar -xz ./yq_linux_{{ arch }}
+      mv ./yq_linux_{{ arch }} /usr/bin/yq
+  when: inventory_hostname in groups['k8s_controls']
+
+- name: Install kubectl-slice
+  become: true
+  ansible.builtin.shell:
+    creates: /usr/bin/kubectl-slice
+    cmd: |
+      curl -L https://github.com/patrickdappollonio/kubectl-slice/releases/download/{{ slice_version }}/kubectl-slice_linux_{{ slice_arch }}.tar.gz | tar -xz kubectl-slice
+      mv ./kubectl-slice /usr/bin/
+  when: inventory_hostname in groups['k8s_controls']
+
+- name: Check VF config
+  become: true
+  ansible.builtin.shell:
+    cmd: |
+      cat /sys/class/net/{{ vf_iface }}/device/sriov_numvfs
+  check_mode: no
+  changed_when: false
+  register: cur_vf
+
+- name: Add VF-s
+  become: true
+  ansible.builtin.shell:
+    cmd: |
+      echo {{ vf_num }} > /sys/class/net/{{ vf_iface }}/device/sriov_numvfs
+  when: cur_vf.stdout != vf_num|string
+
+- name: Apply sriov-cni daemonset
+  kubernetes.core.k8s:
+    state: present
+    src: https://raw.githubusercontent.com/k8snetworkplumbingwg/sriov-cni/refs/tags/{{ sriov_cni_version }}/images/sriov-cni-daemonset.yaml
+  when: inventory_hostname in groups['k8s_controls']
+
+- name: Apply config for sriov-ndp
+  kubernetes.core.k8s:
+    state: present
+    template: 'configMap.yaml.j2'
+  when: inventory_hostname in groups['k8s_controls']
+
+- name: Apply sriov-ndp daemonset
+  kubernetes.core.k8s:
+    state: present
+    src: https://raw.githubusercontent.com/k8snetworkplumbingwg/sriov-network-device-plugin/refs/tags/{{ sriov_ndp_version }}/deployments/sriovdp-daemonset.yaml
+  when: inventory_hostname in groups['k8s_controls']
+
+- name: Restart kubelet
+  become: true
+  systemd:
+    name: kubelet
+    state: restarted

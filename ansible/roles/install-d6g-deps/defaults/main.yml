@@ -1,0 +1,9 @@
+---
+arch: amd64
+yq_version: v4.44.6
+slice_arch: x86_64
+slice_version: v1.4.1
+sriov_cni_version: v2.8.1
+sriov_ndp_version: v3.8.0
+sriov_vendor: 15b3
+sriov_dev: 101e

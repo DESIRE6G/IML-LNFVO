@@ -1,0 +1,7 @@
+---
+- name: Reset k8s cluster
+  hosts: k8s_controls, k8s_workers
+  tasks:
+    - name: Reset k8s cluster
+      ansible.builtin.import_role:
+        name: reset-k8s-cluster

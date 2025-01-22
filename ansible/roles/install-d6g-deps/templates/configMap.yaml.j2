@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sriovdp-config
+  namespace: kube-system
+data:
+  config.json: |
+    {
+        "resourceList": [
+            {
+                "resourceName": "cx6dx_vf",
+                "resourcePrefix": "nvidia.com",
+                "selectors": [{
+                    "vendors": ["{{ sriov_vendor }}"],
+                    "devices": ["{{ sriov_dev }}"]
+                }]
+            }
+        ]
+    }

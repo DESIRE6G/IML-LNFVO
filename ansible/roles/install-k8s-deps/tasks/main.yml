@@ -1,0 +1,13 @@
+---
+
+- ansible.builtin.import_tasks:
+    file: install-deps.yml
+
+- ansible.builtin.import_tasks:
+    file: install-containerd.yml
+
+- ansible.builtin.import_tasks:
+    file: install-k8s.yml
+
+- ansible.builtin.import_tasks:
+    file: install-helm.yml

@@ -1,0 +1,40 @@
+---
+- name: Add docker apt-key
+  become: true
+  ansible.builtin.get_url:
+    url: https://download.docker.com/linux/ubuntu/gpg
+    dest: /etc/apt/keyrings/docker-apt-keyring.asc
+    checksum: sha256:1500c1f56fa9e26b9b8f42452a553675796ade0807cdce11975eb98170b3a570
+    mode: '0644'
+
+- name: Add docker apt repo
+  become: true
+  ansible.builtin.apt_repository:
+    repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker-apt-keyring.asc] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+    state: present
+
+- name: Install containerd.io package
+  become: true
+  ansible.builtin.apt:
+    name: containerd.io
+    update_cache: yes
+
+- name: Add default config of containerd
+  become: true
+  ansible.builtin.shell: /usr/bin/containerd config default > /etc/containerd/config.toml
+
+- name: Enable systemd cgroup driver for containerd
+  become: true
+  ansible.builtin.lineinfile:
+    path: /etc/containerd/config.toml
+    regexp: '^(.*)SystemdCgroup = '
+    line: '\g<1>SystemdCgroup = true'
+    backrefs: true
+
+- name: Enable and start the containerd service
+  become: true
+  systemd:
+    name: containerd
+    state: restarted
+    enabled: yes
+    daemon-reload: yes

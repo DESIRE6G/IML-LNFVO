@@ -1,0 +1,26 @@
+---
+- name: Cluster healthcheck
+  ansible.builtin.shell: "curl http://localhost:10248/healthz"
+  ignore_errors: true
+  changed_when: false
+  register: cluster_hc
+
+- block:
+  - name: Reset cluster
+    become: true
+    ansible.builtin.shell: "kubeadm reset -f"
+
+  - name: Clean up CNI conf
+    become: true
+    ansible.builtin.file:
+      state: absent
+      path: /etc/cni/net.d
+
+  - name: Clean up kube config
+    ansible.builtin.file:
+      state: absent
+      path: "/home/{{ ansible_user_id }}/.kube"
+  when: not cluster_hc.failed
+
+# reset iptables ?
+# ipvsadm --clear ?

@@ -1,0 +1,108 @@
+---
+- name: Get kubeadm version
+  ansible.builtin.shell: kubeadm version -o short
+  ignore_errors: true
+  register: kubeadm_version
+
+- block:
+  - name: Unhold k8s packages
+    become: true
+    ansible.builtin.dpkg_selections:
+      name: "{{ item }}"
+      selection: install
+    ignore_errors: true
+    loop:
+      - kubeadm
+      - kubelet
+
+  - name: Unhold kubectl for control nodes
+    become: true
+    ansible.builtin.dpkg_selections:
+      name: "{{ item }}"
+      selection: install
+    ignore_errors: true
+    loop:
+      - kubectl
+    when: inventory_hostname in groups['k8s_controls']
+
+  - name: Remove previous version of k8s packages
+    become: true
+    ansible.builtin.apt:
+      name:
+        - kubeadm
+        - kubelet
+      state: absent
+    ignore_errors: true
+
+  - name: Install kubectl for control nodes
+    become: true
+    ansible.builtin.apt:
+      name:
+        - kubectl
+      state: absent
+    when: inventory_hostname in groups['k8s_controls']
+
+  - name: Remove previous k8s repo from apt
+    become: true
+    ansible.builtin.apt_repository:
+      repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.asc] https://pkgs.k8s.io/core:/stable:/{{ kubeadm_version.stdout | regex_search('v[0-9]+.[0-9]+') }}/deb/ /"
+      state: absent
+    ignore_errors: true
+  when: "not kubeadm_version.stdout.startswith(k8s_version)"
+
+- name: Add k8s repo key
+  become: true
+  ansible.builtin.get_url:
+    url: "https://pkgs.k8s.io/core:/stable:/{{ k8s_version }}/deb/Release.key"
+    dest: /etc/apt/keyrings/kubernetes-apt-keyring.asc
+      #checksum: sha256:5fe267a9ae47ffd566624057f2c8f64ab8a786a9c650e92cc22135381b04f12b
+    mode: '0644'
+
+- name: Add k8s repo to apt
+  become: true
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.asc] https://pkgs.k8s.io/core:/stable:/{{ k8s_version }}/deb/ /"
+    state: present
+
+- name: Install k8s packages
+  become: true
+  ansible.builtin.apt:
+    name:
+      - kubeadm
+      - kubelet
+    update_cache: yes
+
+- name: Install kubectl for control nodes
+  become: true
+  ansible.builtin.apt:
+    name:
+      - kubectl
+    update_cache: yes
+  when: inventory_hostname in groups['k8s_controls']
+
+- name: Hold k8s packages
+  become: true
+  ansible.builtin.dpkg_selections:
+    name: "{{ item }}"
+    selection: hold
+  loop:
+    - kubeadm
+    - kubelet
+
+- name: Hold kubectl for control nodes
+  become: true
+  ansible.builtin.dpkg_selections:
+    name: "{{ item }}"
+    selection: hold
+  loop:
+    - kubectl
+  when: inventory_hostname in groups['k8s_control']
+
+- name: Enable and start the kubelet service
+  become: true
+  systemd:
+    name: kubelet
+    state: restarted
+    masked: false
+    enabled: yes
+    daemon-reload: yes

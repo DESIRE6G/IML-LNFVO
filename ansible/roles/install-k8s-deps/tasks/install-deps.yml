@@ -1,0 +1,36 @@
+---
+# NOTE
+# The default behavior of a kubelet was to fail to start if swap memory was detected on a node.
+# Swap has been supported since v1.22. And since v1.28, Swap is supported for cgroup v2 only;
+# the NodeSwap feature gate of the kubelet is beta but disabled by default.
+# You MUST disable swap if the kubelet is not properly configured to use swap.
+
+- name: Disable swap
+  become: true
+  ansible.builtin.shell: "swapoff -a"
+
+- name: Disable swap in fstab
+  become: true
+  replace:
+    path: /etc/fstab
+    regexp: '^([^#].*?\sswap\s+sw\s+.*)$'
+    replace: '# \g<1>'
+
+- name: Add modules persistently
+  become: true
+  community.general.modprobe:
+    name: "{{ item }}"
+    state: present
+    persistent: present
+  loop:
+    - br_netfilter
+    - overlay
+
+- name: Configure sysctl
+  become: true
+  ansible.posix.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    sysctl_file: "/etc/sysctl.d/99-k8s.conf"
+    sysctl_set: true
+  loop: "{{ sysctl_config | dict2items }}"

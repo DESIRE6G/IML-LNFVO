@@ -1,0 +1,16 @@
+all:
+  hosts:
+    node1:
+      vf_iface: enp1s0f0np0
+      vf_num: 4
+    node2:
+      vf_iface: enp1s0f0np0
+      vf_num: 4
+  children:
+    k8s_controls:
+      hosts:
+        node1:
+    k8s_workers:
+      hosts:
+        node1:
+        node2:

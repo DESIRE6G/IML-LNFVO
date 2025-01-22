@@ -1,0 +1,65 @@
+---
+- name: Cluster healthcheck
+  ansible.builtin.shell: "curl http://localhost:10248/healthz"
+  ignore_errors: true
+  changed_when: false
+  register: cluster_hc
+
+- block:
+  - name: Init cluster
+    become: true
+    ansible.builtin.shell: "kubeadm init --pod-network-cidr={{ pod_cidr }}"
+
+  - name: Ensure kube dir exist
+    ansible.builtin.file:
+      path: "/home/{{ ansible_user_id }}/.kube"
+      state: directory
+      mode: '0755'
+
+  - name: Copy admin config
+    become: true
+    ansible.builtin.copy:
+      src: /etc/kubernetes/admin.conf
+      dest: "/home/{{ ansible_user_id }}/.kube/config"
+      remote_src: yes
+      owner: "{{ ansible_user_id }}"
+      group: "{{ ansible_user_id }}"
+      mode: '0600'
+
+  - name: Use controls as worker nodes
+    ansible.builtin.shell: "kubectl taint nodes --all node-role.kubernetes.io/control-plane-"
+    ignore_errors: true
+    when: inventory_hostname in groups['k8s_controls'] and inventory_hostname in groups['k8s_workers']
+
+  - name: Install flannel
+    ansible.builtin.shell: "kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml"
+
+  - name: Install multus
+    ansible.builtin.shell: "kubectl apply -f https://raw.githubusercontent.com/k8snetworkplumbingwg/multus-cni/master/deployments/multus-daemonset-thick.yml"
+
+  - name: Restart containerd
+    become: true
+    ansible.builtin.systemd_service:
+      state: restarted
+      name: containerd
+
+  - name: Wait for control node to be ready
+    ansible.builtin.shell: "kubectl wait --for=condition=Ready node/{{ inventory_hostname }}"
+  when: cluster_hc.failed and inventory_hostname in groups['k8s_controls']
+
+- name: Register join command
+  ansible.builtin.shell: "kubeadm token create --print-join-command"
+  delegate_to: "{{ groups['k8s_controls'][0] }}"
+  run_once: true
+  register: join_cmd
+
+- name: Join worker nodes
+  become: true
+  ansible.builtin.shell: "{{ join_cmd.stdout}}"
+  when: cluster_hc.failed and inventory_hostname not in groups['k8s_controls']
+
+- name: Restart containerd
+  become: true
+  ansible.builtin.systemd_service:
+    state: restarted
+    name: containerd
