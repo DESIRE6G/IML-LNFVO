@@ -25,11 +25,11 @@ spec:
           mountPath: /hugepages
         resources:
           limits:
-            hugepages-2Mi: 1Gi
+            hugepages-1Gi: 1Gi
             memory: 1Gi
             nvidia.com/cx6dx_vf: '1'
           requests:
-            hugepages-2Mi: 1Gi
+            hugepages-1Gi: 1Gi
             memory: 1Gi
             nvidia.com/cx6dx_vf: '1'
       volumes:

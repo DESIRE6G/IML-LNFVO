@@ -26,10 +26,10 @@ spec:
           mountPath: /var/lib/cni/usrspcni
         resources:
           limits:
-            hugepages-2Mi: 1Gi
+            hugepages-1Gi: 1Gi
             memory: 1Gi
           requests:
-            hugepages-2Mi: 1Gi
+            hugepages-1Gi: 1Gi
             memory: 1Gi
       volumes:
       - name: hugepage
