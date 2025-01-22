@@ -97,7 +97,7 @@ def addroutetoinit(srcnf, dstnf, dstintf, srcintf):
     srcnf["initcmd"] += f"arp -i {srcintf} -s {d['ip']} {d['mac']};ip route add {d['ip']}/32 dev {srcintf};"
     srcnf["initcmd"] = SingleQuotedScalarString(srcnf["initcmd"])
 
-def addif(dic, name, type, ifindex):
+def addif(dic, name, type, ifindex='1'):
   if f"{name}-{type}-{ifindex}" in dic:
     return
   n = {}
@@ -143,7 +143,7 @@ def addroutetonfr(nfrsrc, nfrdst, srcnode, dstnf, dstintfname):
   dstintf = getif(dstnf, dstintfname)
   nfrdst['files']['ipv4rules.cfg'] += f"R{dstintf['ip']}/32 {nfrdstport}\n"
   if srcnode != dstnf['node']:
-    port = getifindex(nfrsrc, f"{srcnode}-{dstnf['node']}")
+    port = getifindex(nfrsrc, f"{srcnode}-{dstnf['node']}-1")
     nfrsrc['files']['ipv4rules.cfg'] += f"R{dstintf['ip']}/32 {port}\n"
 
 def addnfr(services, node):
@@ -161,7 +161,7 @@ def addcmdtonfr(nfr, services, interfaces):
   nfr['cmd'] = './l3fwd-static -l 0-1 -n 4 --no-pci'
   i = 0
   for intf in nfr['interfaces']:
-    if interfaces[intf['interface']]['type'] == 'memif':
+    if interpod_mode=='memif' and interfaces[intf['name']]['type'] == 'memif':
       nfr['cmd'] += f" --vdev=net_memif{i},role=client,socket-abstract=no,socket=$(ls /var/lib/cni/usrspcni/*{intf['interface']}.sock)"
     else:
       nfr['cmd'] += f" --vdev=net_tap{i},iface=dtap{i},remote={intf['interface']}"
@@ -177,7 +177,8 @@ def addcmdtonfr(nfr, services, interfaces):
     if type == 'br' or type == 'memif':
       mac = getif(services[service], intf['name'])['mac']
     elif type == 'sriov':
-      mac = interfaces[f"{intf['interface'].rsplit('-', 1)[1]}-sriov"]['mac']
+      _if = intf['interface'].rsplit('-', 1)[0]
+      mac = interfaces[f"{_if.rsplit('-', 1)[1]}-sriov-1"]['mac']
     nfr['cmd'] += f" --eth-dest={i},{mac}"
     i += 1
   nfr['cmd'] += ' --rule_ipv4="/opt/nfconfig/ipv4rules.cfg" --rule_ipv6="/opt/nfconfig/ipv6rules.cfg"'
@@ -240,7 +241,7 @@ def generate_values(nsd, path):
         if srcnf['node'] != dstnf['node']:
           addif(data['interfaces'], srcnf['node'], "sriov")
           addif(data['interfaces'], dstnf['node'], "sriov")
-          addtonf(nfrsrc, f"{srcnf['node']}-sriov", f"{srcnf['node']}-{dstnf['node']}")
+          addtonf(nfrsrc, f"{srcnf['node']}-sriov-1", f"{srcnf['node']}-{dstnf['node']}-1")
 
         addroutetoinit(srcnf, dstnf, dstintf, srcintf)
         addroutetonfr(nfrsrc, nfrdst, srcnf['node'], dstnf, dstintf)
