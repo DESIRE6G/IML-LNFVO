@@ -26,11 +26,11 @@ spec:
         resources:
           limits:
             hugepages-1Gi: 1Gi
-            memory: 1Gi
+            memory: 4Gi
             nvidia.com/cx6dx_vf: '1'
           requests:
             hugepages-1Gi: 1Gi
-            memory: 1Gi
+            memory: 4Gi
             nvidia.com/cx6dx_vf: '1'
       volumes:
       - name: hugepage

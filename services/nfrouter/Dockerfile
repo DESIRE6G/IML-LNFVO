@@ -20,6 +20,8 @@ RUN apt-get -y update && \
       pciutils \
       tcpdump \
       net-tools \
+      iperf \
+      iperf3 \
       `apt-cache depends libdpdk-dev | awk '/Depends:/{print$2}'`
 
 RUN curl -L "http://fast.dpdk.org/rel/dpdk-${DPDK_VERSION}.tar.xz" | tar -xJ --strip-components=1 && \
@@ -30,6 +32,7 @@ RUN curl -L "http://fast.dpdk.org/rel/dpdk-${DPDK_VERSION}.tar.xz" | tar -xJ --s
 WORKDIR /dpdk/examples/l3fwd
 COPY ./debug_print.patch /dpdk/examples/l3fwd/
 RUN patch -p1 < debug_print.patch && make static
+#RUN make static
 
 WORKDIR /dpdk/examples/l3fwd/build
 
