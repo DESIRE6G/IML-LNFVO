@@ -1,3 +1,5 @@
 deploys
 files
 kustomize
+venv
+**/*.tar
