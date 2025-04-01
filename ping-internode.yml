@@ -12,13 +12,13 @@ lnsd:
 
     application-functions:
       - af-instance-id: "pkt-src"
-        af-id: "busybox"
+        af-id: "iperf3"
         af-name: "Pkt source"
         af-version: "1.0"
         af-node: "epyc1"
 
       - af-instance-id: "pkt-dst"
-        af-id: "busybox"
+        af-id: "iperf3"
         af-name: "Pkt destination"
         af-version: "1.0"
         af-node: "epyc2"
@@ -39,5 +39,5 @@ lnsd:
             - member-connection-point-index: 1
               member-if-id-ref: "pkt-dst:1"
             - member-connection-point-index: 2
-              member-if-id-ref: "pkt-src:q"
+              member-if-id-ref: "pkt-src:1"
         e2e_delay_budget: "5ms"
