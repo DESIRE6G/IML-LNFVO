@@ -15,6 +15,8 @@ app = Flask(__name__)
 
 interpod_mode = 'br'
 #interpod_mode = 'memif'
+nfrouter_mode = 'dpdk'
+#nfrouter_mode = 't4p4s'
 nf_memif_setup = False
 DEFAULT_NAMESPACE = 'desire6g'
 DEFAULT_CHART = './graph-chart'
@@ -97,7 +99,7 @@ def addroutetoinit(srcnf, dstnf, dstintf, srcintf):
     srcnf["initcmd"] += f"arp -i {srcintf} -s {d['ip']} {d['mac']};ip route add {d['ip']}/32 dev {srcintf};"
     srcnf["initcmd"] = SingleQuotedScalarString(srcnf["initcmd"])
 
-def addif(dic, name, type, ifindex='1'):
+def addif(dic, name, type, ifindex=None):
   if f"{name}-{type}-{ifindex}" in dic:
     return
   n = {}
@@ -108,7 +110,10 @@ def addif(dic, name, type, ifindex='1'):
   if type == "memif":
     n["bridgedomain"] = getnextmemifbridgeid()
 
-  dic[f"{name}-{type}-{ifindex}"] = n
+  if ifindex is not None:
+    dic[f"{name}-{type}-{ifindex}"] = n
+  else:
+    dic[f"{name}-{type}"] = n
 
 def getif(nf, intf):
   x = next(i for i in nf['interfaces'] if i['interface'] == intf)
@@ -153,39 +158,57 @@ def addnfr(services, node):
   d['name'] = 'nfrouter'
   d['node'] = node
   d['files'] = {}
-  d['files']['ipv6rules.cfg'] = SingleQuotedScalarString('R::/128 0')
-  d['files']['ipv4rules.cfg'] = ''
+  if nfrouter_mode == 'dpdk':
+    d['files']['ipv6rules.cfg'] = SingleQuotedScalarString('R::/128 0')
+    d['files']['ipv4rules.cfg'] = ''
   services[f"nfr-{node}"] = d
 
 def addcmdtonfr(nfr, services, interfaces):
-  nfr['cmd'] = './l3fwd-static -l 0-1 -n 4 --no-pci'
+  ealopts = '-l 0-1 -n 4 --no-pci'
+  cmdopts = ''
   i = 0
   for intf in nfr['interfaces']:
     if interpod_mode=='memif' and interfaces[intf['name']]['type'] == 'memif':
-      nfr['cmd'] += f" --vdev=net_memif{i},role=client,socket-abstract=no,socket=$(ls /var/lib/cni/usrspcni/*{intf['interface']}.sock)"
+      ealopts += f" --vdev=net_memif{i},role=client,socket-abstract=no,socket=$(ls /var/lib/cni/usrspcni/*{intf['interface']}.sock)"
     else:
-      nfr['cmd'] += f" --vdev=net_tap{i},iface=dtap{i},remote={intf['interface']}"
+      ealopts += f" --vdev=net_tap{i},iface=dtap{i},remote={intf['interface']}"
     i += 1
-  nfr['cmd'] += f" -- -p 0x{int('1'*len(nfr['interfaces']), 2):x}"
-  nfr['cmd'] += ' --config="'
-  nfr['cmd'] += ','.join(f'({i},0,0),({i},1,1)' for i in range(len(nfr['interfaces'])))
-  nfr['cmd'] += '" --mode=poll -P'
-  i = 0
-  for intf in nfr['interfaces']:
-    servicewithtype, ifindex = intf['name'].rsplit('-', 1)
-    service, type = servicewithtype.rsplit('-', 1)
-    if type == 'br' or type == 'memif':
-      mac = getif(services[service], intf['name'])['mac']
-    elif type == 'sriov':
-      _if = intf['interface'].rsplit('-', 1)[0]
-      mac = interfaces[f"{_if.rsplit('-', 1)[1]}-sriov-1"]['mac']
-    nfr['cmd'] += f" --eth-dest={i},{mac}"
-    i += 1
-  nfr['cmd'] += ' --rule_ipv4="/opt/nfconfig/ipv4rules.cfg" --rule_ipv6="/opt/nfconfig/ipv6rules.cfg"'
-  if interpod_mode == 'memif':
-    nfr['cmd'] += ' --relax-rx-offload --parse-ptype'
+  cmdopts += f" -p 0x{int('1'*len(nfr['interfaces']), 2):x}"
 
-  nfr['cmd'] = SingleQuotedScalarString(nfr['cmd'])
+  if nfrouter_mode == 't4p4s':
+    cmdopts += ' --config=\\"'
+  else:
+    cmdopts += ' --config="'
+  cmdopts += ','.join(f'({i},0,0),({i},1,1)' for i in range(len(nfr['interfaces'])))
+  if nfrouter_mode == 't4p4s':
+    cmdopts += '\\"'
+  else:
+    cmdopts += '"'
+  if nfrouter_mode == 'dpdk':
+    cmdopts += ' --mode=poll -P'
+
+  if nfrouter_mode == 'dpdk':
+    i = 0
+    for intf in nfr['interfaces']:
+      servicewithtype, ifindex = intf['name'].rsplit('-', 1)
+      service, type = servicewithtype.rsplit('-', 1)
+      if type == 'br' or type == 'memif':
+        mac = getif(services[service], intf['name'])['mac']
+      elif type == 'sriov':
+        _if = intf['interface'].rsplit('-', 1)[0]
+        mac = interfaces[f"{_if.rsplit('-', 1)[1]}-sriov-1"]['mac']
+      cmdopts += f" --eth-dest={i},{mac}"
+      i += 1
+    cmdopts += ' --rule_ipv4="/opt/nfconfig/ipv4rules.cfg" --rule_ipv6="/opt/nfconfig/ipv6rules.cfg"'
+
+  if interpod_mode == 'memif' and nfrouter_mode == 'dpdk':
+    cmdopts += ' --relax-rx-offload --parse-ptype'
+
+  if nfrouter_mode == 'dpdk':
+    nfr['cmd'] = SingleQuotedScalarString(f'./l3fwd-static {ealopts} -- {cmdopts}')
+  else:
+    nfr['cmd'] = SingleQuotedScalarString(f'echo "nfroutereal -> ealopts += { ealopts }" >> /root/t4p4s/opts_dpdk.cfg;echo "nfrouterports -> cmdopts += { cmdopts }" >> /root/t4p4s/opts_dpdk.cfg;PYTHON3=/root/t4p4s/.venv/bin/python /root/t4p4s/t4p4s.sh :nfrouter p4rt')
+  #nfr['cmd'] = SingleQuotedScalarString(nfr['cmd'])
 
 def cleanintf(services):
   for s in services:
@@ -239,16 +262,18 @@ def generate_values(nsd, path):
         addtonf(nfrdst, dstintf, dstintf)
 
         if srcnf['node'] != dstnf['node']:
-          addif(data['interfaces'], srcnf['node'], "sriov")
-          addif(data['interfaces'], dstnf['node'], "sriov")
+          addif(data['interfaces'], srcnf['node'], "sriov", 1)
+          addif(data['interfaces'], dstnf['node'], "sriov", 1)
           addtonf(nfrsrc, f"{srcnf['node']}-sriov-1", f"{srcnf['node']}-{dstnf['node']}-1")
 
         addroutetoinit(srcnf, dstnf, dstintf, srcintf)
-        addroutetonfr(nfrsrc, nfrdst, srcnf['node'], dstnf, dstintf)
+        if nfrouter_mode == 'dpdk':
+          addroutetonfr(nfrsrc, nfrdst, srcnf['node'], dstnf, dstintf)
 
     for n in data['services'].values():
       if n['name'] == 'nfrouter':
         addcmdtonfr(n, data['services'], data['interfaces'])
+        #pass
       elif nf_memif_setup:
         n['cmd'] += 'sleep infinity;'
 
@@ -282,7 +307,7 @@ def deploy_yaml():
       values_path = os.path.join(DEPLOY_FOLDER, f'values-{deploy_id}.yaml')
       generate_values(yaml_data, values_path)
 
-      result = run(['helm', 'install', '--namespace', DEFAULT_NAMESPACE, '--create-namespace', '--post-renderer', './kustomize.sh', '-f', values_path, f'deploy-{deploy_id}', DEFAULT_CHART], capture_output = True, text = True)
+      result = run(['helm', 'install', '--namespace', DEFAULT_NAMESPACE, '--create-namespace', '--post-renderer', f'{DEFAULT_CHART}/post-render.sh', '-f', values_path, f'deploy-{deploy_id}', DEFAULT_CHART], capture_output = True, text = True)
 
       if result.stderr:
         response = (f"Failed to deploy: {result.stderr}", 500)
