@@ -1,4 +1,4 @@
-IMGS:=nfrouter trex iperf3
+IMGS:=nfrouter-dpdk trex iperf3
 NS:=desire6g
 
 all: $(IMGS)

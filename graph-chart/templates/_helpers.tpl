@@ -112,7 +112,7 @@ metadata:
   name: {{ .id }}
 
 resources:
-- ../../services/{{ .nf.name }}
+- ../../apps/{{ .nf.name }}
 patches:
 - target:
     kind: Deployment
