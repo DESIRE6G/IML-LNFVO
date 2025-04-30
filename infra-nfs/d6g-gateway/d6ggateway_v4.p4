@@ -164,6 +164,40 @@ control NFR(inout header_t hdr,
     }
 }
 
+/*control L2(inout header_t hdr,
+        inout ingress_metadata_t ig_md,
+        inout ingress_intrinsic_metadata_for_deparser_t ig_dprsr_md,
+        inout ingress_intrinsic_metadata_for_tm_t ig_tm_md) {
+
+    action drop() {
+        ig_dprsr_md.drop_ctl = ig_dprsr_md.drop_ctl | 0b001;
+        exit;
+    }
+
+    action send_on_port(bit<9> port) {
+       ig_tm_md.ucast_egress_port = port;
+    }
+
+    action send_on_mcgroup(bit<8> grpid) {
+	ig_tm_md.ucast_egress_port = 1;
+    }
+
+    table L2Forward {
+       key={
+            hdr.ethernet.dstAddr    : exact;
+       }
+       actions = {
+          send_on_port;send_on_mcgroup;drop;
+       }
+       size = 1000;
+       default_action = drop();
+    }
+
+    apply {
+	L2Forward.apply();
+    }
+}*/
+
 
 
 control NFIngress(
@@ -335,19 +369,22 @@ control NFIngress(
         }
     }
 
+    
+    
 
     apply {
         if (hdr.arp.isValid()) {
                   arp_responder_v4.apply();
         } else if (hdr.icmp.isValid()) {
 		  icmp_responder_v4.apply();
-        } else if (!hdr.d6gmain.isValid()) {
-           ModeSelector.apply();
-           ServiceMapper.apply();
-           UEMapper.apply();
-	   ig_md.nffwd=1;
-	} else {
-	   nfrouter.apply(hdr, ig_md, ig_dprsr_md, ig_tm_md);
+        } else {
+           if (!hdr.d6gmain.isValid()) {
+              ModeSelector.apply();
+              ServiceMapper.apply();
+              UEMapper.apply();
+   	      ig_md.nffwd=1;
+	   }
+           nfrouter.apply(hdr, ig_md, ig_dprsr_md, ig_tm_md);
 	}
     }
 
