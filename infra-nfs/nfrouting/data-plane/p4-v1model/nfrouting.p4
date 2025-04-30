@@ -11,7 +11,8 @@ struct header_t {
     ethernet_t ethernet;
     evlan_t evlan;
     d6gmain_t d6gmain;
-    ipv6_t ipv6;
+//    ipv4_t ipv4;
+//    ipv6_t ipv6;
 }
 
 parser NFParser(
@@ -29,7 +30,8 @@ parser NFParser(
         pkt.extract(hdr.ethernet);
         transition select(hdr.ethernet.etherType) {
             ETHERTYPE_VLAN: parse_evlan;
-            ETHERTYPE_IPV6: parse_ipv6;
+//            ETHERTYPE_IPV4: parse_ipv4;
+//            ETHERTYPE_IPV6: parse_ipv6;
             ETHERTYPE_D6G:  parse_d6g;
             default: accept;
         }
@@ -38,25 +40,23 @@ parser NFParser(
     state parse_evlan {
   	pkt.extract(hdr.evlan);
         transition select(hdr.evlan.etherType) {
-            ETHERTYPE_IPV6: parse_ipv6;
+//            ETHERTYPE_IPV4: parse_ipv4;
+//            ETHERTYPE_IPV6: parse_ipv6;
             ETHERTYPE_D6G:  parse_d6g;
             default: accept;
         }
     }
 
-    state parse_ipv6 {
-        pkt.extract(hdr.ipv6);
-        transition accept;
-    }
+//    state parse_ipv6 {
+//        pkt.extract(hdr.ipv6);
+//        transition accept;
+//    }
 
-    state parse_d6g {
-        pkt.extract(hdr.d6gmain);
 
-//        transition select(hdr.d6gmain.nextHeader) {
-//           ETHERTYPE_IPV6: parse_ipv6;
-//        }
-        transition accept;
-    }
+//    state parse_d6g {
+//        pkt.extract(hdr.d6gmain);
+//        transition accept;
+//    }
 }
 
 /*************************************************************************
@@ -134,6 +134,27 @@ control NFIngress(
        default_action = drop();
     }
 
+    action send_on_port(bit<9> port) {
+       standard_metadata.egress_spec = port;
+    }
+
+    action send_on_mcgroup(bit<16> grpid) {
+        standard_metadata.mcast_grp = grpid;
+    }
+
+    table L2Forward {
+       key={
+            hdr.ethernet.dstAddr    : exact;
+       }
+       actions = {
+          send_on_port;send_on_mcgroup;drop;
+       }
+       size = 1000;
+       default_action = drop();
+    }
+
+
+
 
     apply {
         if (NFPortClassifier.apply().hit) {
@@ -144,6 +165,8 @@ control NFIngress(
 
 	if (hdr.d6gmain.isValid()) {
 		NFRouter.apply();
+	} else {
+		L2Forward.apply();
 	}
     }
 
@@ -181,7 +204,7 @@ control NFDeparser(
         pkt.emit(hdr.ethernet);
         pkt.emit(hdr.evlan);
         pkt.emit(hdr.d6gmain);
-        pkt.emit(hdr.ipv6);
+//        pkt.emit(hdr.ipv6);
     }
 
 
