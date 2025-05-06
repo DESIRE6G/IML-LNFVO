@@ -1,20 +1,31 @@
 #include <core.p4>
-#if __TARGET_TOFINO__ == 2
-#include <t2na.p4>
-#else
+#ifdef __TARGET_TOFINO__
 #include <tna.p4>
+#else
+#include <v1model.p4>
 #endif
 
 #include "common/headers.p4"
-#include "common/parsers.p4"
 
+#ifdef __TARGET_TOFINO__
+#include "common/parsers.p4"
+#endif
+
+#ifdef __TARGET_TOFINO__
 #define RXPORT ig_intr_md.ingress_port
+#define TXPORT ig_tm_md.ucast_egress_port
+#else
+#define RXPORT standard_metadata.ingress_port
+#define TXPORT standard_metadata.egress_spec
+#endif
 
 struct ingress_metadata_t {
     bit<128> ueid;
     bit<1>   direction; // 0-upstream, 1-downstream
     bit<1>   nffwd;
+#ifdef __TARGET_TOFINO__
     bit<16>  icmp_cs_tmp;
+#endif
 }
 
 struct egress_metadata_t {
@@ -33,15 +44,25 @@ struct header_t {
 parser NFIngressParser(
         packet_in pkt,
         out header_t hdr,
+#ifdef __TARGET_TOFINO__
         out ingress_metadata_t ig_md,
-        out ingress_intrinsic_metadata_t ig_intr_md) {
+        out ingress_intrinsic_metadata_t ig_intr_md
+#else
+        inout ingress_metadata_t ig_md,
+        inout standard_metadata_t standard_metadata
+#endif
+) {
 
 
+#ifdef __TARGET_TOFINO__
     TofinoIngressParser() tofino_parser;
     Checksum() csicmp;
+#endif
 
     state start {
+#ifdef __TARGET_TOFINO__
         tofino_parser.apply(pkt, ig_intr_md);
+#endif
         ig_md.ueid = 0;
         ig_md.direction = 0;
         ig_md.nffwd = 0;
@@ -68,9 +89,11 @@ parser NFIngressParser(
 
     state parse_icmp {
       pkt.extract(hdr.icmp);
+#ifdef __TARGET_TOFINO__
       csicmp.subtract(hdr.icmp.checksum);
       csicmp.subtract(hdr.icmp.icmp_type);
       ig_md.icmp_cs_tmp = csicmp.get();
+#endif
       transition accept;
     }
 
@@ -102,11 +125,20 @@ parser NFIngressParser(
 
 control NFR(inout header_t hdr,
         inout ingress_metadata_t ig_md,
+#ifdef __TARGET_TOFINO__
         inout ingress_intrinsic_metadata_for_deparser_t ig_dprsr_md,
-        inout ingress_intrinsic_metadata_for_tm_t ig_tm_md) {
+        inout ingress_intrinsic_metadata_for_tm_t ig_tm_md
+#else
+	inout standard_metadata_t standard_metadata
+#endif
+) {
 
     action drop2() {
+#ifdef __TARGET_TOFINO__
         ig_dprsr_md.drop_ctl = ig_dprsr_md.drop_ctl | 0b001;
+#else
+        mark_to_drop(standard_metadata);
+#endif
         exit;
     }
 
@@ -127,16 +159,16 @@ control NFR(inout header_t hdr,
     }
 
     action NFForward(bit<9> port) { // SRC-MAC?
-        ig_tm_md.ucast_egress_port = port;
+        TXPORT = port;
     }
 
     action NFForwardMAC(bit<9> port, bit<48> dstMAC) { // SRC-MAC?
-        ig_tm_md.ucast_egress_port = port;
+        TXPORT = port;
         hdr.ethernet.dstAddr = dstMAC;
     }
 
     action NFForwardToExternal(bit<9> port, bit<48> dstMAC) { // SRC-MAC?
-        ig_tm_md.ucast_egress_port = port;
+        TXPORT = port;
         hdr.ethernet.dstAddr = dstMAC;
         hdr.ethernet.etherType = hdr.d6gmain.nextHeader;
         hdr.d6gmain.setInvalid();
@@ -203,15 +235,24 @@ control NFR(inout header_t hdr,
 control NFIngress(
         inout header_t hdr,
         inout ingress_metadata_t ig_md,
+#ifdef __TARGET_TOFINO__
         in ingress_intrinsic_metadata_t ig_intr_md,
         in ingress_intrinsic_metadata_from_parser_t ig_prsr_md,
         inout ingress_intrinsic_metadata_for_deparser_t ig_dprsr_md,
-        inout ingress_intrinsic_metadata_for_tm_t ig_tm_md) {
+        inout ingress_intrinsic_metadata_for_tm_t ig_tm_md
+#else
+        inout standard_metadata_t standard_metadata
+#endif
+) {
 
     NFR() nfrouter;
 
     action drop() {
+#ifdef __TARGET_TOFINO__
         ig_dprsr_md.drop_ctl = ig_dprsr_md.drop_ctl | 0b001;
+#else
+        mark_to_drop(standard_metadata);
+#endif
         exit;
     }
 
@@ -224,13 +265,13 @@ control NFIngress(
     action setUpstreamMode4(bit<9> port) {
 	ig_md.ueid = (bit<128>) hdr.ipv4.srcAddr;
         ig_md.direction = 0;
-        ig_tm_md.ucast_egress_port = port;
+        TXPORT = port;
     }
 
     action setDownstreamMode4(bit<9> port) {
 	ig_md.ueid = (bit<128>) hdr.ipv4.dstAddr;
         ig_md.direction = 1;
-        ig_tm_md.ucast_egress_port = port;
+        TXPORT = port;
     }
 
 /*    action setUpstreamMode(bit<9> port) {
@@ -265,7 +306,7 @@ control NFIngress(
 
     table ModeSelector {
         key={
-            ig_intr_md.ingress_port : exact; 
+            RXPORT : exact; 
             hdr.ipv4.isValid()      : exact;
         }
         actions = {
@@ -313,7 +354,7 @@ control NFIngress(
         hdr.arp_ipv4.tpa = hdr.arp_ipv4.spa;
         hdr.arp_ipv4.sha = my_mac;
         hdr.arp_ipv4.spa = tmp;
-	ig_tm_md.ucast_egress_port = RXPORT;
+	TXPORT = RXPORT;
     }
 
     table arp_responder_v4 {
@@ -347,7 +388,7 @@ control NFIngress(
         hdr.ethernet.srcAddr = tmp_mac;
 
         //send it back to the same port
-        ig_tm_md.ucast_egress_port = RXPORT;
+        TXPORT = RXPORT;
         //standard_metadata.egress_spec = standard_metadata.ingress_port;
     }
 
@@ -384,7 +425,11 @@ control NFIngress(
               UEMapper.apply();
    	      ig_md.nffwd=1;
 	   }
+#ifdef __TARGET_TOFINO__
            nfrouter.apply(hdr, ig_md, ig_dprsr_md, ig_tm_md);
+#else
+           nfrouter.apply(hdr, ig_md, standard_metadata);
+#endif
 	}
     }
 
@@ -393,16 +438,24 @@ control NFIngress(
 
 control NFIngressDeparser(
         packet_out pkt,
+#ifdef __TARGET_TOFINO__
         inout header_t hdr,
         in ingress_metadata_t ig_md,
-        in ingress_intrinsic_metadata_for_deparser_t ig_dprsr_md) {
-
+        in ingress_intrinsic_metadata_for_deparser_t ig_dprsr_md
+#else
+	in header_t hdr
+#endif
+) {
+#ifdef __TARGET_TOFINO__
     Checksum() cs;
+#endif
 
     apply {
+#ifdef __TARGET_TOFINO__
         if (hdr.icmp.isValid()) {
 	    hdr.icmp.checksum = cs.update({ hdr.icmp.icmp_type, ig_md.icmp_cs_tmp});
         }
+#endif
         pkt.emit(hdr.ethernet);
         pkt.emit(hdr.arp);
         pkt.emit(hdr.arp_ipv4);
@@ -414,7 +467,7 @@ control NFIngressDeparser(
 }
 
 // EGRESS ************************************************************
-
+#ifdef __TARGET_TOFINO__
 parser NFEgressParser(
         packet_in pkt,
         out header_t hdr,
@@ -461,4 +514,66 @@ Pipeline(NFIngressParser(),
          NFEgressDeparser()) pipe;
 
 Switch(pipe) main;
+#else
+
+control MyVerifyChecksum(inout header_t hdr, inout ingress_metadata_t ig_md) {   
+    apply {  }
+}
+
+control MyEgress(inout header_t hdr,
+                 inout ingress_metadata_t ig_md,
+                 inout standard_metadata_t standard_metadata) {
+    apply {  }
+}
+
+
+control MyComputeChecksum(inout header_t hdr, inout ingress_metadata_t ig_md) {
+     apply {
+
+        //update ICMP checksum
+	update_checksum_with_payload(
+	    hdr.icmp.isValid(),
+            {
+              hdr.icmp.icmp_type,
+              hdr.icmp.icmp_code,
+              16w0,
+              hdr.icmp.identifier,
+              hdr.icmp.sequence_number,
+            },
+              hdr.icmp.checksum,
+              HashAlgorithm.csum16);
+
+        //update IPv4 checksum
+        update_checksum(
+            hdr.ipv4.isValid(), 
+            { 
+              hdr.ipv4.version,
+              hdr.ipv4.ihl, 
+              hdr.ipv4.diffserv, 
+              hdr.ipv4.totalLen, 
+              hdr.ipv4.identification, 
+              hdr.ipv4._reserved,
+              hdr.ipv4.dont_fragment,
+              hdr.ipv4.more_fragments,
+              hdr.ipv4.fragOffset, 
+              hdr.ipv4.ttl, 
+              hdr.ipv4.protocol, 
+              hdr.ipv4.srcAddr, 
+              hdr.ipv4.dstAddr 
+            }, 
+              hdr.ipv4.hdrChecksum, 
+              HashAlgorithm.csum16);
+    }
+}
+
+
+V1Switch(
+NFIngressParser(),
+MyVerifyChecksum(),
+NFIngress(),
+MyEgress(),
+MyComputeChecksum(),
+NFIngressDeparser()
+) main;
+#endif
 
