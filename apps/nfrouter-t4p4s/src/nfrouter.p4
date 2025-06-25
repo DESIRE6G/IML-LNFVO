@@ -1,16 +1,17 @@
 #include <core.p4>
 #include <v1model.p4>
 
-#include "../../../common-p4/headers.p4"
+#include "headers.p4"
 
 struct metadata_t {
 }
+
 
 struct header_t {
     ethernet_t ethernet;
     evlan_t evlan;
     d6gmain_t d6gmain;
-    ipv4_t ipv4;
+    ipv6_t ipv6;
 }
 
 parser NFParser(
@@ -28,35 +29,39 @@ parser NFParser(
         pkt.extract(hdr.ethernet);
         transition select(hdr.ethernet.etherType) {
             ETHERTYPE_VLAN: parse_evlan;
-            ETHERTYPE_IPV4: parse_ipv4;
+            ETHERTYPE_IPV6: parse_ipv6;
             ETHERTYPE_D6G:  parse_d6g;
             default: accept;
         }
     }
 
     state parse_evlan {
-        pkt.extract(hdr.evlan);
+  	pkt.extract(hdr.evlan);
         transition select(hdr.evlan.etherType) {
-            ETHERTYPE_IPV4: parse_ipv4;
+            ETHERTYPE_IPV6: parse_ipv6;
             ETHERTYPE_D6G:  parse_d6g;
             default: accept;
         }
     }
 
-    state parse_ipv4 {
-        pkt.extract(hdr.ipv4);
+    state parse_ipv6 {
+        pkt.extract(hdr.ipv6);
         transition accept;
     }
 
     state parse_d6g {
         pkt.extract(hdr.d6gmain);
+
+//        transition select(hdr.d6gmain.nextHeader) {
+//           ETHERTYPE_IPV6: parse_ipv6;
+//        }
         transition accept;
     }
 }
 
 /*************************************************************************
- ************   C H E C K S U M    V E R I F I C A T I O N   *************
- *************************************************************************/
+************   C H E C K S U M    V E R I F I C A T I O N   *************
+*************************************************************************/
 
 control MyVerifyChecksum(inout header_t hdr, inout metadata_t meta) {
     apply {  }
@@ -64,8 +69,8 @@ control MyVerifyChecksum(inout header_t hdr, inout metadata_t meta) {
 
 
 /*************************************************************************
- **************  I N G R E S S   P R O C E S S I N G   *******************
- *************************************************************************/
+**************  I N G R E S S   P R O C E S S I N G   *******************
+*************************************************************************/
 
 control NFIngress(
         inout header_t hdr,
@@ -79,10 +84,10 @@ control NFIngress(
 
     table NFPortClassifier {
         key = {
-            standard_metadata.ingress_port : exact;
+                standard_metadata.ingress_port : exact;
         }
         actions = {
-            NoAction;drop;
+                NoAction;drop;
         }
         size = 1000;
         default_action = NoAction();
@@ -93,75 +98,58 @@ control NFIngress(
     }
 
     table FWDGExecute {
-        key = {
+	key = {
             hdr.d6gmain.serviceId    : exact;
             hdr.d6gmain.nextNF       : exact;
-        }
-        actions = {
-            NoAction; UpdateNF;
-        }
-        size = 10000;
-        default_action = NoAction();
+	}
+	actions = {
+		NoAction; UpdateNF;
+	}
+	size = 10000;
+	default_action = NoAction();
     }
 
-    action NFForward(bit<9> port) { // SRC-MAC?
-        standard_metadata.egress_spec = port;
-    }
-
-    action NFForwardMAC(bit<9> port, bit<48> dstMAC) { // SRC-MAC?
-        standard_metadata.egress_spec = port;
-        hdr.ethernet.dstAddr = dstMAC;
+    action NFForward(bit<9> port, bit<48> dstMAC) { // SRC-MAC?
+	standard_metadata.egress_spec = port;
+	standard_metadata.egress_port = port;
+	hdr.ethernet.dstAddr = dstMAC;
     }
 
     action NFForwardToExternal(bit<9> port, bit<48> dstMAC) { // SRC-MAC?
-        standard_metadata.egress_spec = port;
-        hdr.ethernet.dstAddr = dstMAC;
-        hdr.ethernet.etherType = hdr.d6gmain.nextHeader;
-        hdr.d6gmain.setInvalid();
+	standard_metadata.egress_spec = port;
+	standard_metadata.egress_port = port;
+	hdr.ethernet.dstAddr = dstMAC;
+	hdr.ethernet.etherType =hdr.d6gmain.nextHeader;
+	hdr.d6gmain.setInvalid();
     }
 
     table NFRouter {
-        key={
+       key={
             hdr.d6gmain.serviceId    : exact;
             hdr.d6gmain.locationId   : exact;
             hdr.d6gmain.nextNF       : exact;
-        }
-        actions = {
-            NFForward;NFForwardMAC;NFForwardToExternal;drop;
-        }
-        size = 10000;
-        default_action = drop();
-    }
-
-    action send_on_port(bit<9> port) {
-       standard_metadata.egress_spec = port;
-    }
-
-    action send_on_mcgroup(bit<16> grpid) {
-        standard_metadata.mcast_grp = grpid;
-    }
-
-    table L2Forward {
-       key={
-            hdr.ethernet.dstAddr    : exact;
        }
        actions = {
-          send_on_port;send_on_mcgroup;drop;
+           NFForward;NFForwardToExternal;drop;
        }
-       size = 1000;
+       size = 10000;
        default_action = drop();
     }
 
+
     apply {
-        if (hdr.d6gmain.isValid()) {
-            if (NFPortClassifier.apply().hit) {
-                FWDGExecute.apply();
-            }
-            NFRouter.apply();
-        } else {
-            L2Forward.apply();
-        }
+        if (NFPortClassifier.apply().hit) {
+		if (hdr.d6gmain.isValid()) {
+			FWDGExecute.apply();
+		}
+	}
+
+	if (hdr.d6gmain.isValid()) {
+		NFRouter.apply();
+	}
     }
+
+
 }
 
 
@@ -173,17 +161,17 @@ control NFEgress(
         inout metadata_t meta,
         inout standard_metadata_t standard_metadata) {
 
-    apply {}
+   apply {}
 
 }
 
 /*************************************************************************
- *************   C H E C K S U M    C O M P U T A T I O N   **************
- *************************************************************************/
+*************   C H E C K S U M    C O M P U T A T I O N   **************
+*************************************************************************/
 
 control MyComputeChecksum(inout header_t  hdr, inout metadata_t meta) {
-    apply {
-    }
+     apply {
+     }
 }
 
 
@@ -195,8 +183,10 @@ control NFDeparser(
         pkt.emit(hdr.ethernet);
         pkt.emit(hdr.evlan);
         pkt.emit(hdr.d6gmain);
-        pkt.emit(hdr.ipv4);
+        pkt.emit(hdr.ipv6);
     }
+
+
 }
 
 V1Switch(NFParser(),

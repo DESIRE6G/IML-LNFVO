@@ -1,7 +1,7 @@
 #include <core.p4>
 #include <v1model.p4>
 
-#include "../../../common-p4/headers.p4"
+#include "../../common-p4/headers.p4"
 
 struct metadata_t {
 }
@@ -18,7 +18,6 @@ parser NFParser(
         out header_t hdr,
         inout metadata_t meta,
         inout standard_metadata_t standard_metadata) {
-
 
     state start {
         transition parse_ethernet;
@@ -62,7 +61,6 @@ control MyVerifyChecksum(inout header_t hdr, inout metadata_t meta) {
     apply {  }
 }
 
-
 /*************************************************************************
  **************  I N G R E S S   P R O C E S S I N G   *******************
  *************************************************************************/
@@ -77,93 +75,16 @@ control NFIngress(
         exit;
     }
 
-    table NFPortClassifier {
-        key = {
-            standard_metadata.ingress_port : exact;
-        }
-        actions = {
-            NoAction;drop;
-        }
-        size = 1000;
-        default_action = NoAction();
-    }
-
-    action UpdateNF(bit<16> nfid) {
-        hdr.d6gmain.nextNF = nfid;
-    }
-
-    table FWDGExecute {
-        key = {
-            hdr.d6gmain.serviceId    : exact;
-            hdr.d6gmain.nextNF       : exact;
-        }
-        actions = {
-            NoAction; UpdateNF;
-        }
-        size = 10000;
-        default_action = NoAction();
-    }
-
-    action NFForward(bit<9> port) { // SRC-MAC?
-        standard_metadata.egress_spec = port;
-    }
-
-    action NFForwardMAC(bit<9> port, bit<48> dstMAC) { // SRC-MAC?
-        standard_metadata.egress_spec = port;
-        hdr.ethernet.dstAddr = dstMAC;
-    }
-
-    action NFForwardToExternal(bit<9> port, bit<48> dstMAC) { // SRC-MAC?
-        standard_metadata.egress_spec = port;
-        hdr.ethernet.dstAddr = dstMAC;
-        hdr.ethernet.etherType = hdr.d6gmain.nextHeader;
-        hdr.d6gmain.setInvalid();
-    }
-
-    table NFRouter {
-        key={
-            hdr.d6gmain.serviceId    : exact;
-            hdr.d6gmain.locationId   : exact;
-            hdr.d6gmain.nextNF       : exact;
-        }
-        actions = {
-            NFForward;NFForwardMAC;NFForwardToExternal;drop;
-        }
-        size = 10000;
-        default_action = drop();
-    }
-
-    action send_on_port(bit<9> port) {
-       standard_metadata.egress_spec = port;
-    }
-
-    action send_on_mcgroup(bit<16> grpid) {
-        standard_metadata.mcast_grp = grpid;
-    }
-
-    table L2Forward {
-       key={
-            hdr.ethernet.dstAddr    : exact;
-       }
-       actions = {
-          send_on_port;send_on_mcgroup;drop;
-       }
-       size = 1000;
-       default_action = drop();
-    }
-
     apply {
-        if (hdr.d6gmain.isValid()) {
-            if (NFPortClassifier.apply().hit) {
-                FWDGExecute.apply();
-            }
-            NFRouter.apply();
-        } else {
-            L2Forward.apply();
-        }
+        if (!hdr.d6gmain.isValid())
+            drop();
+
+        bit<48> tmp_mac = hdr.ethernet.dstAddr;
+        hdr.ethernet.dstAddr = hdr.ethernet.srcAddr;
+        hdr.ethernet.srcAddr = tmp_mac;
+        standard_metadata.egress_spec = standard_metadata.ingress_port;
     }
 }
-
 
 // EGRESS ************************************************************
 
@@ -185,7 +106,6 @@ control MyComputeChecksum(inout header_t  hdr, inout metadata_t meta) {
     apply {
     }
 }
-
 
 control NFDeparser(
         packet_out pkt,

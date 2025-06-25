@@ -12,4 +12,4 @@ kubectl slice -f $FN --include-kind "ConfigMap" -t {{.metadata.name}}.yml -o $DI
 for nf in $(yq -r 'select(.kind == "Kustomization" and .metadata.name != "main").metadata.name' $FN); do
   kubectl slice -f $FN --include Kustomization/$nf -t kustomization.yml -o $DIR/$nf
 done
-kubectl kustomize $DIR && rm -rf $DIR
+kubectl kustomize $DIR #&& rm -rf $DIR

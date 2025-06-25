@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: d6g-gw-v4-bmv2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: d6g-gw-v4-bmv2
+  template:
+    metadata:
+      labels:
+        app: d6g-gw-v4-bmv2
+    spec:
+      initContainers:
+      - name: switch
+        image: desire6g/d6g-gw-v4-bmv2:latest
+        imagePullPolicy: Never
+        restartPolicy: Always
+        securityContext:
+          privileged: true
+        command: [ "/bin/bash", "-c", "--" ]
+        args: [ "trap : TERM INT; sleep infinity & wait" ]
+        resources:
+          limits:
+            memory: 4Gi
+          requests:
+            memory: 4Gi
+      containers:
+      - name: d6g-gw-v4-bmv2
+        image: desire6g/d6g-gw-v4-controlplane:latest
+        imagePullPolicy: Never
+        securityContext:
+          privileged: true
+        command: [ "/bin/bash", "-c", "--" ]
+        args: [ "trap : TERM INT; sleep infinity & wait" ]

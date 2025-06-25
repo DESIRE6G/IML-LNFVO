@@ -1,3 +1,6 @@
+# Install dependencies in a virtual env
+python -m venv venv
+./venv/bin/python -m pip install -r requirements.txt
 # Start LNFVO
 ./venv/bin/python nfvo-api.py
 

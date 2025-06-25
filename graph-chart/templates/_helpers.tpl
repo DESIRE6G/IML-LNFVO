@@ -139,6 +139,9 @@ patches:
           nodeName: {{ .nf.node }}
           containers:
           - name: {{ .nf.name }}
+          {{- if hasKey .nf "image" }}
+            image: {{ .nf.image }}
+          {{- end }}
           {{- if hasKey .nf "cmd" }}
             args: [ '{{ .nf.cmd }}' ]
           {{- end }}
@@ -153,13 +156,32 @@ patches:
               - name: {{ .nf.hostpath.name }}
                 mountPath: {{ .nf.hostpath.path }}
           {{- end }}
-          {{- if hasKey .nf "initcmd" }}
+          {{- if .nf.env }}
+            env:
+            {{- range $key, $val := .nf.env }}
+            - name: {{ $key }}
+              value: {{ $val | quote }}
+            {{- end }}
+          {{- end }}
+          {{- if or (hasKey .nf "initcmd") (hasKey .nf "sidecar") }}
           initContainers:
+          {{- end }}
+          {{- if hasKey .nf "initcmd" }}
           - name: init-network
             image: {{ .nf.initimage }}
+            imagePullPolicy: Never
             securityContext:
               privileged: true
             command: ['sh', '-c', '{{ .nf.initcmd }}']
+          {{- end }}
+          {{- if hasKey .nf "sidecar" }}
+          - name: switch
+            image: {{ .nf.sidecar.image }}
+            imagePullPolicy: Never
+            restartPolicy: Always
+            securityContext:
+              privileged: true
+            command: ['sh', '-c', '{{ .nf.sidecar.cmd }}']
           {{- end }}
           {{- if or (hasKey .nf "files") (hasKey .nf "hostpath") }}
           volumes:

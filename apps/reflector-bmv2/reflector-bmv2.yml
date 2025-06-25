@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: reflector-bmv2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: reflector-bmv2
+  template:
+    metadata:
+      labels:
+        app: reflector-bmv2
+    spec:
+      containers:
+      - name: reflector-bmv2
+        image: desire6g/reflector-bmv2:latest
+        imagePullPolicy: Never
+        securityContext:
+          privileged: true
+        command: [ "/bin/bash", "-c", "--" ]
+        args: [ "simple_switch_grpc --log-console --device-id 1  -i 0@$(basename -a /sys/class/net/*br*) /src/reflector/data-plane/reflector.json -- --grpc-server-addr 0.0.0.0:50051" ]
+        resources:
+          limits:
+            memory: 4Gi
+          requests:
+            memory: 4Gi

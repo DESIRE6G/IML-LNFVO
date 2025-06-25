@@ -17,7 +17,8 @@ RUN apt-get -y update && \
       tcpdump \
       tcpreplay \
       dnsutils \
-      net-tools
+      net-tools \
+      ethtool
 
 RUN git clone --depth 1 --branch ${IPERF3_VERSION} https://github.com/esnet/iperf.git /iperf && \
     ./configure && \
