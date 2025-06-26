@@ -1,0 +1,74 @@
+lnsd:
+  ns-instance-id: "11223344-e2a8-4338-bc8c-be685548bad2"
+  ns:
+    name: "Ping scenario"
+    id: "418420e3-e2a8-4338-bc8c-be685548bad2"
+    vendor: "D6G"
+    descriptor-version: "1.0"
+    site-id: "d6g-001"
+    location-id: 40
+    default-service-id: "30"
+    default-nfrouter-mode: "bmv2"
+    default-interpod-mode: 'br'
+
+    network-functions:
+      - instance-id: "reflector1"
+        id: "reflector-bmv2"
+        name: "debug nf"
+        version: "1.0"
+        node: "epyc1"
+        static-nfids: [40, 41]
+
+      - instance-id: "reflector2"
+        id: "reflector-bmv2"
+        name: "debug nf"
+        version: "1.0"
+        node: "epyc2"
+        static-nfids: [23,26]
+        static-mac: "02:66:66:66:66:66"
+
+    unmanaged-functions: []
+
+    application-functions:
+      - instance-id: "pkt-dst"
+        id: "iperf3"
+        name: "Pkt destination"
+        version: "1.0"
+        node: "epyc2"
+        domain: "external"
+        static-nfids: [22,25]
+        static-mac: "02:ee:c1:df:e7:e5"
+        static-ip: "10.69.69.53"
+
+    site-connections: []
+    forwarding_graphs:
+      - graph-name: "upstream"
+        direction: "upstream"
+        links:
+          - id: "upstream-1"
+            connection-points:
+            - if-id-ref: "pkt-src:1"
+            - if-id-ref: "reflector1:1"
+          - id: "upstream-2"
+            connection-points:
+            - if-id-ref: "reflector1:1"
+            - if-id-ref: "reflector2:1"
+          - id: "upstream-3"
+            connection-points:
+            - if-id-ref: "reflector2:1"
+            - if-id-ref: "pkt-dst:1"
+      - graph-name: "downstream"
+        direction: "downstream"
+        links:
+          - id: "downstream-1"
+            connection-points:
+            - if-id-ref: "pkt-dst:1"
+            - if-id-ref: "reflector2:1"
+          - id: "downstream-2"
+            connection-points:
+            - if-id-ref: "reflector2:1"
+            - if-id-ref: "reflector1:1"
+          - id: "downstream-3"
+            connection-points:
+            - if-id-ref: "reflector1:1"
+            - if-id-ref: "pkt-src:1"

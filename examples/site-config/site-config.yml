@@ -1,0 +1,34 @@
+interfaces:
+  - id: epyc1-epyc2
+    type: sriov
+    mac: "02:11:22:33:44:55"
+  - id: pkt-src-br-1
+    type: br
+  - id: reflector-br-1
+    type: br
+
+predeployed-nfrs:
+  - id: "nfr-epyc1"
+    node: "epyc1"
+    controlplane-ip: "13.13.13.13"
+    static-mac: "02:44:55:66:77"
+    static-ip: "18.18.18.18"
+    ue2sm: true
+    interfaces: ["epyc1-epyc2", "pkt-src-br-1", "reflector1-br-1"]
+
+predeployed-tas: []
+predeployed-nfs: []
+
+predeployed-afs:
+  - instance-id: "pkt-src"
+    id: "iperf3"
+    name: "Pkt destination"
+    version: "1.0"
+    node: "epyc1"
+    domain: "external"
+    is-ue: true
+    static-nfids: [42, 43]
+    interfaces:
+      - id: "pkt-src-br-1"
+        mac: "02:22:33:44:55:66"
+        ip: "17.17.17.17"

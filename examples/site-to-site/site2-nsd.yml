@@ -1,0 +1,77 @@
+lnsd:
+  ns-instance-id: "55667788"
+  ns:
+    name: "Site-to-site scenario-2"
+    id: "ccccdddd"
+    vendor: "D6G"
+    descriptor-version: "1.0"
+    site-id: "d6g-002"
+    location-id: 40
+    default-service-id: "30"
+    default-nfrouter-mode: "bmv2"
+    default-interpod-mode: 'br'
+
+    site-connections:
+      - id: "d6g-001"
+        ip: "16.16.16.16"
+        mac: "02:20:20:20:20:20"
+        dstip: "15.15.15.15"
+        dstmac: "02:10:10:10:10:10"
+        transport-type: "external"
+        application-functions:
+          - instance-id: "pkt-src"
+            id: "iperf3"
+            name: "Pkt source"
+            version: "1.0"
+            domain: "external"
+            static-nfids: [21,24]
+            static-mac: "02:55:55:55:55:55"
+            static-ip: "11.12.12.12"
+            is-ue: true
+        network-functions: []
+
+    unmanaged-functions: []
+
+    network-functions:
+      - instance-id: "dummy"
+        id: "reflector-bmv2"
+        name: "debug nf"
+        version: "1.0"
+        node: "epyc3"
+        static-nfids: [23,26]
+        static-mac: "02:66:66:66:66:66"
+
+    application-functions:
+      - instance-id: "pkt-dst"
+        id: "iperf3"
+        name: "Pkt destination"
+        version: "1.0"
+        node: "epyc3"
+        domain: "external"
+        static-nfids: [22,25]
+        static-mac: "02:ee:c1:df:e7:e5"
+        static-ip: "10.69.69.53"
+
+    forwarding_graphs:
+      - graph-name: "upstream"
+        direction: "upstream"
+        links:
+          - id: "upstream-1"
+            connection-points:
+            - if-id-ref: "pkt-src:1"
+            - if-id-ref: "dummy:1"
+          - id: "upstream-2"
+            connection-points:
+            - if-id-ref: "dummy:1"
+            - if-id-ref: "pkt-dst:1"
+      - graph-name: "downstream"
+        direction: "downstream"
+        links:
+          - id: "downstream-1"
+            connection-points:
+            - if-id-ref: "pkt-dst:1"
+            - if-id-ref: "dummy:1"
+          - id: "downstream-2"
+            connection-points:
+            - if-id-ref: "dummy:1"
+            - if-id-ref: "pkt-src:1"
