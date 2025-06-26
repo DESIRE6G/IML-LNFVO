@@ -162,17 +162,15 @@ control NFR(inout header_t hdr,
         default_action = NoAction();
     }
 
-    action NFForward(bit<9> port) { // SRC-MAC?
+    action NFForwardMAC(bit<9> port, bit<48> srcMAC, bit<48> dstMAC) {
         TXPORT = port;
-    }
-
-    action NFForwardMAC(bit<9> port, bit<48> dstMAC) { // SRC-MAC?
-        TXPORT = port;
+        hdr.ethernet.srcAddr = srcMAC;
         hdr.ethernet.dstAddr = dstMAC;
     }
 
-    action NFForwardToExternal(bit<9> port, bit<48> dstMAC) { // SRC-MAC?
+    action NFForwardToExternal(bit<9> port, bit<48> srcMAC, bit<48> dstMAC) {
         TXPORT = port;
+        hdr.ethernet.srcAddr = srcMAC;
         hdr.ethernet.dstAddr = dstMAC;
         hdr.ethernet.etherType = hdr.d6gmain.nextHeader;
         hdr.d6gmain.setInvalid();
@@ -185,7 +183,7 @@ control NFR(inout header_t hdr,
             hdr.d6gmain.nextNF       : exact;
         }
         actions = {
-            NFForward;NFForwardMAC;NFForwardToExternal;drop2;
+            NFForwardMAC;NFForwardToExternal;drop2;
         }
         size = 10000;
         default_action = drop2();

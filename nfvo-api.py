@@ -190,10 +190,9 @@ def addroutetonfr(infs, nfrsrc, nfrdst, srcnf, srcintfname, dstnf, dstintfname, 
         'nfid': dstnf['nfids'][g_index],
         'serviceId': serviceid})
     if dstnf['domain'] == 'internal':
-      # TODO test and refactor, src mac???
-      #nfrdst['tables']['nfrouter'].append({
       nfrdst['tables']['nfforwardmac'].append({
         'key': dstnf['nfids'][g_index],
+        'srcMAC': nfrsrc['mac'],
         'dstMAC': dstintf['mac'],
         'ePort': nfrdstport,
         'serviceId': serviceid
@@ -201,6 +200,7 @@ def addroutetonfr(infs, nfrsrc, nfrdst, srcnf, srcintfname, dstnf, dstintfname, 
     elif dstnf['domain'] == 'external':
       nfrdst['tables']['fwdexternal'].append({
         'key': dstnf['nfids'][g_index],
+        'srcMAC': nfrsrc['mac'],
         'dstMAC': dstintf['mac'],
         'ePort': nfrdstport,
         'serviceId': serviceid
@@ -213,8 +213,10 @@ def addroutetonfr(infs, nfrsrc, nfrdst, srcnf, srcintfname, dstnf, dstintfname, 
       #name = getif(nfrdst, dstifname)['name']
       dstifname = f"{dstnf['node']}-sriov-1"
 
+      # TODO srcMAC should be this?
       nfrsrc['tables']['nfforwardmac'].append({
         'key': dstnf['nfids'][g_index],
+        'srcMAC': nfrsrc['mac'],
         'dstMAC': infs[dstifname]['mac'],
         'ePort': port,
         'serviceId': serviceid
@@ -227,7 +229,7 @@ def changenfrtogw(nfr):
 
   nfr['is_edge'] = True
   nfr['ip'] = generate_ip()
-  nfr['mac'] = generate_mac()
+  #nfr['mac'] = generate_mac()
   nfr['tables']['arp_responder'].append({'arp_op': 1, 'ip': nfr['ip'], 'mac': nfr['mac']})
   nfr['tables']['icmp_responder'].append({'ip': nfr['ip'], 'mac': nfr['mac']})
   nfr['image'] = 'desire6g/d6g-gw-v4-controlplane:latest'
@@ -240,6 +242,7 @@ def addnfr(services, node):
   d = {}
   d['name'] = f'nfrouter-{nfrouter_mode}'
   d['node'] = node
+  d['mac'] = generate_mac()
   d['files'] = {}
   d['is_edge'] = False
   if nfrouter_mode == 'dpdk':
@@ -344,9 +347,18 @@ def addnf(services, nf, domain, gs, name=None):
   s['is-ue'] = nf.get('is-ue', False)
   s['env'] = {}
   services[nf['instance-id']] = s
-  #print('---')
-  #print(s['name'])
-  #print(s['mac'])
+
+def parse_siteconfig(path):
+
+  with open(path, 'r') as f:
+    try:
+      yaml=YAML(typ='safe')
+      sconfig = yaml.load(f)
+      print(sconfig)
+
+    except Exception as ex:
+      response = (f'{type(ex).__name__}: {ex.args}', 500)
+      traceback.print_exc()
 
 def generate_values(nsd, path):
   global nfrouter_mode
@@ -552,6 +564,7 @@ def deploy_yaml():
                       body['serviceId'] = e['serviceId']
                       body['locationId'] = data['location-id']
                       body['port'] = e['ePort']
+                      body['srcMAC'] = e['srcMAC']
                       body['dstMAC'] = e['dstMAC']
                     elif t == 'fwdexternal':
                       endpoint = 'NFForwardExternal'
@@ -559,6 +572,7 @@ def deploy_yaml():
                       body['serviceId'] = e['serviceId']
                       body['locationId'] = data['location-id']
                       body['port'] = e['ePort']
+                      body['srcMAC'] = e['srcMAC']
                       body['dstMAC'] = e['dstMAC']
                     elif t == 'upstream':
                       endpoint = 'setUpstreamMode4'
@@ -606,4 +620,5 @@ def deploy_yaml():
   return jsonify({"response": response[0]}), response[1]
 
 if __name__ == "__main__":
+  parse_siteconfig("./site-config.yml")
   app.run(host='0.0.0.0', debug=True)

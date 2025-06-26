@@ -78,8 +78,8 @@ def NFForwardMAC(sh, initialParameters):
         "action": "NFForwardMAC",
         "whatToMatch": ["hdr.d6gmain.serviceId", "hdr.d6gmain.locationId", "hdr.d6gmain.nextNF"],
         "value": [str(initialParameters["serviceId"]), str(initialParameters["locationId"]), str(initialParameters["nextNF"]) ],
-        "paramName": ["port", "dstMAC"],
-        "actionParam": [str(initialParameters["port"]), str(initialParameters["dstMAC"])],
+        "paramName": ["port", "srcMAC", "dstMAC"],
+        "actionParam": [str(initialParameters["port"]), str(initialParameters["srcMAC"]), str(initialParameters["dstMAC"])],
     }
     result, entry = insertTableEntry(sh, parameters)
     return result
@@ -91,8 +91,8 @@ def NFForwardExternal(sh, initialParameters):
         "action": "NFForwardToExternal",
         "whatToMatch": ["hdr.d6gmain.serviceId", "hdr.d6gmain.locationId", "hdr.d6gmain.nextNF"],
         "value": [str(initialParameters["serviceId"]), str(initialParameters["locationId"]), str(initialParameters["nextNF"])],
-        "paramName": ["port", "dstMAC"],
-        "actionParam": [str(initialParameters["port"]), str(initialParameters["dstMAC"])],
+        "paramName": ["port", "srcMAC", "dstMAC"],
+        "actionParam": [str(initialParameters["port"]), str(initialParameters["srcMAC"]), str(initialParameters["dstMAC"])],
     }
     result, entry = insertTableEntry(sh, parameters)
     return result
