@@ -50,8 +50,8 @@ def FWDGExecute(sh, initialParameters):
     parameters = {
         "table": "FWDGExecute",
         "action": "UpdateNF",
-        "whatToMatch": ["hdr.d6gmain.serviceId", "hdr.d6gmain.nextNF"],
-        "value": [str(initialParameters["serviceId"]), str(initialParameters["nextNF"])],
+        "whatToMatch": ["standard_metadata.ingress_port", "hdr.d6gmain.serviceId", "hdr.d6gmain.nextNF"],
+        "value": [str(initialParameters["ingress_port"]), str(initialParameters["serviceId"]), str(initialParameters["nextNF"])],
         "paramName": ["nfid"],
         "actionParam": [str(initialParameters["nfid"])],
     }

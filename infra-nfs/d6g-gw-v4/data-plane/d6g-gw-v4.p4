@@ -137,7 +137,7 @@ control NFR(inout header_t hdr,
 
     table NFPortClassifier {
         key = {
-            standard_metadata.ingress_port : exact;
+            RXPORT : exact;
         }
         actions = {
             NoAction;drop2;
@@ -152,8 +152,9 @@ control NFR(inout header_t hdr,
 
     table FWDGExecute {
         key = {
-            hdr.d6gmain.serviceId    : exact;
-            hdr.d6gmain.nextNF       : exact;
+            RXPORT : exact;
+            hdr.d6gmain.serviceId : exact;
+            hdr.d6gmain.nextNF : exact;
         }
         actions = {
             NoAction; UpdateNF;

@@ -186,6 +186,7 @@ def addroutetonfr(infs, nfrsrc, nfrdst, srcnf, srcintfname, dstnf, dstintfname, 
       if {'key': nfrsrcport} not in nfrsrc['tables']['nfportclassifier']:
         nfrsrc['tables']['nfportclassifier'].append({'key': nfrsrcport})
       nfrsrc['tables']['fwdge'].append({
+        'ingress_port': nfrsrcport,
         'key': srcnf['nfids'][g_index],
         'nfid': dstnf['nfids'][g_index],
         'serviceId': serviceid})
@@ -197,14 +198,17 @@ def addroutetonfr(infs, nfrsrc, nfrdst, srcnf, srcintfname, dstnf, dstintfname, 
         'ePort': nfrdstport,
         'serviceId': serviceid
         })
+      # TODO investigate if in multinode scenario the srcMAC should be nfrdst's MAC?
     elif dstnf['domain'] == 'external':
-      nfrdst['tables']['fwdexternal'].append({
+      entry = {
         'key': dstnf['nfids'][g_index],
         'srcMAC': nfrsrc['mac'],
         'dstMAC': dstintf['mac'],
         'ePort': nfrdstport,
         'serviceId': serviceid
-        })
+        }
+      if entry not in nfrdst['tables']['fwdexternal']:
+        nfrdst['tables']['fwdexternal'].append(entry)
     if srcnf['node'] != dstnf['node']:
       ifname = f"{srcnf['node']}-{dstnf['node']}-1"
       port = getifindex(nfrsrc, ifname)
@@ -354,7 +358,6 @@ def parse_siteconfig(path):
     try:
       yaml=YAML(typ='safe')
       sconfig = yaml.load(f)
-      print(sconfig)
 
     except Exception as ex:
       response = (f'{type(ex).__name__}: {ex.args}', 500)
@@ -449,23 +452,27 @@ def generate_values(nsd, path):
 
         addroutetonfr(data['interfaces'], nfrsrc, nfrdst, srcnf, srcintf, dstnf, dstintf, graph_service_id, g_index, l_index)
 
-        if srcnf['domain'] == 'external' and dstnf['domain'] == 'internal':
+        #if srcnf['domain'] == 'external' and dstnf['domain'] == 'internal':
+        if srcnf['domain'] == 'external':
           changenfrtogw(nfrsrc)
           # TODO refactor this into addue2smentries
           nfrsrcport = getifindex(nfrsrc, srcintf)
           entry = {'key': nfrsrcport}
 
+          # TODO this should be done with external -> external?
           if entry not in nfrsrc['tables'][graph_direction]:
             nfrsrc['tables'][graph_direction].append(entry)
 
           relevantues = [srcnf['ip']] if graph_direction == 'upstream' and srcnf['is-ue'] else ueids
           for ueid in relevantues:
-            nfrsrc['tables']['servicemapper'].append({
+            smentry = {
               'dir': 0 if graph_direction == 'upstream' else 1,
               'ueid': f"{ueid}/32",
               'serviceId': graph_service_id,
               'nextNF': dstnf['nfids'][g_index]
-              })
+              }
+            if smentry not in nfrsrc['tables']['servicemapper']:
+              nfrsrc['tables']['servicemapper'].append(smentry)
 
             uemapentry = {
                 'ueid': ueid,
@@ -474,6 +481,7 @@ def generate_values(nsd, path):
             if uemapentry not in nfrsrc['tables']['uemapper']:
               nfrsrc['tables']['uemapper'].append(uemapentry)
 
+        if srcnf['domain'] == 'external':
           # TODO refactor this into addroutetoinit
           dstip = afids[0] if graph_direction == 'upstream' else ueids[0]
           srcnf['env']['AF_IP'] = dstip
@@ -550,6 +558,7 @@ def deploy_yaml():
                     elif t == 'fwdge':
                       endpoint = 'FWDGExecute'
                       body['nextNF'] = e['key']
+                      body['ingress_port'] = e['ingress_port']
                       body['serviceId'] = e['serviceId']
                       body['nfid'] = e['nfid']
                     elif t == 'nfrouter':
