@@ -14,16 +14,10 @@
 {{- end }}
 ---
 {{- include "nfrouter.interfaces-kustomization" .Values.interfaces }}
----
-{{- include "nfrouter.configs-kustomization" .Values.services }}
 
 {{- range $id, $nf := .Values.services }}
 ---
   {{- include "nfrouter.nf-kustomize-patch" (dict "nf" $nf "id" $id) }}
-  {{- if hasKey $nf "files" }}
----
-    {{- include "nfrouter.nf-files-configmap" (dict "id" $id "files" $nf.files) }}
-  {{- end }}
 {{- end }}
 ---
 {{- include "nfrouter.kustomization" .Values.services }}

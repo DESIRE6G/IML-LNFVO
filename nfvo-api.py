@@ -241,15 +241,22 @@ def changenfrtogw(nfr):
   #d['cmd'] = 'trap : TERM INT; sleep infinity & wait'
 
 def addnfr(services, node):
+  infranf_name = 'd6g-gw-v4'
+  result = run(['make', '-C', './infra-nfs', infranf_name], capture_output = True, text = True)
+  nfr['files'] = [
+      {"name": f"{infranf_name}.p4info.txtpb", "path": f"../../infra-nfs/{infranf_name}/data-plane/{infranf_name}.p4info.txtpb"},
+      {"name": f"{infranf_name}.json", "path": f"../../infra-nfs/{infranf_name}/data-plane/{infranf_name}.json"}
+  ]
   if f"nfr-{node}" in services:
     return
   d = {}
-  d['name'] = f'nfrouter-{nfrouter_mode}'
+  d['name'] = f'simple-switch-{nfrouter_mode}'
   d['node'] = node
   d['mac'] = generate_mac()
   d['files'] = {}
   d['is_edge'] = False
   if nfrouter_mode == 'dpdk':
+    d['files'] = {}
     d['files']['ipv6rules.cfg'] = SingleQuotedScalarString('R::/128 0')
     d['files']['ipv4rules.cfg'] = ''
   elif nfrouter_mode == 't4p4s':
@@ -260,6 +267,12 @@ def addnfr(services, node):
     d['tables'] = {'nfportclassifier': [], 'fwdge': [], 'nfrouter': [], 'nfforwardmac': [], 'fwdexternal': [], 'upstream': [], 'downstream': [], 'servicemapper': [], 'uemapper': [], 'arp_responder': [], 'icmp_responder': []}
     d['image'] = 'desire6g/nfrouter-controlplane:latest'
     d['cmd'] = '/p4runtime-sh/venv/bin/python  /src/nfrouting/control-plane/nfr-cp.py'
+    infranf_name = 'nfrouting'
+    result = run(['make', '-C', './infra-nfs', infranf_name], capture_output = True, text = True)
+    d['files'] = [
+        {"name": f"{infranf_name}.p4info.txtpb", "path": f"../../infra-nfs/{infranf_name}/data-plane/{infranf_name}.p4info.txtpb"},
+        {"name": f"{infranf_name}.json", "path": f"../../infra-nfs/{infranf_name}/data-plane/{infranf_name}.json"}
+    ]
     #d['cmd'] = 'trap : TERM INT; sleep infinity & wait'
 
   services[f"nfr-{node}"] = d
@@ -326,6 +339,10 @@ def addcmdtonfr(nfr, services, interfaces, is_edge):
       nfr['sidecar']['image'] = 'desire6g/nfrouter-bmv2:latest'
       nfr['sidecar']['cmd'] = SingleQuotedScalarString(f'simple_switch_grpc --log-console --device-id 1 {bmv2opts} /src/nfrouting/data-plane/p4-v1model/nfrouting.json -- --grpc-server-addr 0.0.0.0:50051')
       #nfr['sidecar']['cmd'] = SingleQuotedScalarString('trap : TERM INT; sleep infinity & wait')
+    nfr['sidecar'] = {}
+    nfr['sidecar']['image'] = 'desire6g/simple-switch-bmv2:latest'
+    nfr['sidecar']['cmd'] = SingleQuotedScalarString(f'simple_switch_grpc --log-console --device-id 1 {bmv2opts} /opt/nfconfig/{nfr["files"][1]["name"]} -- --grpc-server-addr 0.0.0.0:50051')
+    #nfr['sidecar']['cmd'] = SingleQuotedScalarString('trap : TERM INT; sleep infinity & wait')
 
 def cleanintf(services):
   for s in list(services):
@@ -488,8 +505,9 @@ def generate_values(nsd, path):
           srcnf["initcmd"] += f"ip route add {nfrsrc['ip']}/32 dev {srcintf};ip route add {dstip}/32 via {nfrsrc['ip']} dev {srcintf};"
           #addroutetoinit(srcnf, dstnf, dstintf, srcintf, nfrsrc['ip'])
 
-    for n in data['services'].values():
-      if n['name'] == f'nfrouter-{nfrouter_mode}':
+    for k, n in data['services'].items():
+      #if n['name'] == f'nfrouter-{nfrouter_mode}':
+      if k.startswith("nfr-"):
         addcmdtonfr(n, data['services'], data['interfaces'], n['is_edge'])
       elif nf_memif_setup:
         n['cmd'] += 'sleep infinity;'

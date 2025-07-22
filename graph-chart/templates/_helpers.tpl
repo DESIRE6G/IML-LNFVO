@@ -76,21 +76,6 @@ spec:
     }'
 {{- end }}
 
-{{/* Generate kustomization for the configs */}}
-{{- define "nfrouter.configs-kustomization" }}
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-metadata:
-  name: configs
-
-resources:
-{{- range $id, $nf := . }}
-{{- if hasKey $nf "files" }}
-- {{ $id }}-config.yml
-{{- end }}
-{{- end }}
-{{- end }}
-
 {{/* Generate kustomization for the interfaces */}}
 {{- define "nfrouter.interfaces-kustomization" }}
 apiVersion: kustomize.config.k8s.io/v1beta1
@@ -110,6 +95,15 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 metadata:
   name: {{ .id }}
+
+{{- if or (hasKey .nf "files") }}
+configMapGenerator:
+- name: {{ .id }}-config
+  files:
+{{- range .nf.files }}
+  - {{ .path }}
+{{- end }}
+{{- end }}
 
 resources:
 - ../../apps/{{ .nf.name }}
@@ -182,6 +176,11 @@ patches:
             securityContext:
               privileged: true
             command: ['sh', '-c', '{{ .nf.sidecar.cmd }}']
+          {{- if hasKey .nf "files" }}
+            volumeMounts:
+              - name: nf-config
+                mountPath: /opt/nfconfig
+          {{- end }}
           {{- end }}
           {{- if or (hasKey .nf "files") (hasKey .nf "hostpath") }}
           volumes:
@@ -199,16 +198,6 @@ patches:
 
 {{- end }}
 
-{{/* Generate configmap for files */}}
-{{- define "nfrouter.nf-files-configmap" }}
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: {{ .id }}-config
-data:
-  {{ .files | toJson }}
-{{- end }}
-
 {{/* Generate kustomization for the deployment */}}
 {{- define "nfrouter.kustomization" }}
 apiVersion: kustomize.config.k8s.io/v1beta1
@@ -218,7 +207,6 @@ metadata:
 
 resources:
 - interfaces
-- configs
 {{- range $id, $service := . }}
 - {{ $id }}
 {{- end }}
