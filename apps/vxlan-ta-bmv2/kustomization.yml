@@ -1,0 +1,56 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+configMapGenerator:
+- name: vxlan-ta-config
+  files:
+  - ../../infra-nfs/vxlan-ta/data-plane/vxlan-ta.p4info.txtpb
+  - ../../infra-nfs/vxlan-ta/data-plane/vxlan-ta.json
+
+resources:
+- ../simple-switch-bmv2
+
+patches:
+- target:
+    kind: Deployment
+  patch: |-
+    - op: replace
+      path: /metadata/name
+      value: vxlan-ta-bmv2
+- target:
+    kind: Deployment
+  patch: |-
+    - op: replace
+      path: /spec/template/spec/containers/0/name
+      value: vxlan-ta-bmv2
+- patch: |-
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: vxlan-ta-bmv2
+    spec:
+      selector:
+        matchLabels:
+          app: vxlan-ta-bmv2
+      template:
+        metadata:
+          labels:
+            app: vxlan-ta-bmv2
+        spec:
+          containers:
+          - name: vxlan-ta-bmv2
+            args: [ '/p4runtime-sh/venv/bin/python  /local-cp/local-cp.py /opt/nfconfig/vxlan-ta.p4info.txtpb /opt/nfconfig/vxlan-ta.json' ]
+            volumeMounts:
+              - name: nf-config
+                mountPath: /opt/nfconfig
+          initContainers:
+          - name: switch
+            command: [ "/bin/bash", "-c", "--" ]
+            args: [ "PORTS=($(basename -a /sys/class/net/*br*)) simple_switch_grpc --log-console --device-id 1  -i 0@$(basename -a /sys/class/net/*br*) /opt/nfconfig/vxlan-ta.json -- --grpc-server-addr 0.0.0.0:50051" ]
+            volumeMounts:
+              - name: nf-config
+                mountPath: /opt/nfconfig
+          volumes:
+          - name: nf-config
+            configMap:
+              name: vxlan-ta-config
