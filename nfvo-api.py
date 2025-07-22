@@ -170,7 +170,7 @@ def addtonf(nf, name, intf, mac=None, ip=None, memifid=None):
     addiptoinit(nf, ip, intf, memifid, mac)
   nf['interfaces'].append(i)
 
-def addroutetonfr(infs, nfrsrc, nfrdst, srcnf, srcintfname, dstnf, dstintfname, serviceid, g_index, l_index):
+def addroutetonfr(infs, nfrsrc, nfrdst, srcnf, srcintfname, dstnf, dstintfname, serviceid, g_index, l_index, locationId):
   nfrdstport = getifindex(nfrdst, dstintfname)
   nfrsrcport = getifindex(nfrsrc, srcintfname)
   dstintf = getif(dstnf, dstintfname)
@@ -183,32 +183,57 @@ def addroutetonfr(infs, nfrsrc, nfrdst, srcnf, srcintfname, dstnf, dstintfname, 
 
     # TODO refactor to if link is not from external?
     if l_index != 0:
-      if {'key': nfrsrcport} not in nfrsrc['tables']['nfportclassifier']:
-        nfrsrc['tables']['nfportclassifier'].append({'key': nfrsrcport})
-      nfrsrc['tables']['fwdge'].append({
-        'ingress_port': nfrsrcport,
-        'key': srcnf['nfids'][g_index],
-        'nfid': dstnf['nfids'][g_index],
-        'serviceId': serviceid})
+      entry = {
+          "table": "NFPortClassifier",
+          "action": "NoAction",
+          "keys": {"ingress_port": nfrsrcport},
+          "actionParameters": {}
+          }
+      addcpentry(nfrsrc['entries'], entry)
+      entry = {
+          "table": "FWDGExecute",
+          "action": "UpdateNF",
+          "keys": {
+            "ingress_port": nfrsrcport,
+            "serviceId": serviceid,
+            "nextNF": srcnf['nfids'][g_index]
+            },
+          "actionParameters": {"nfid": dstnf['nfids'][g_index]}
+          }
+      addcpentry(nfrsrc['entries'], entry)
     if dstnf['domain'] == 'internal':
-      nfrdst['tables']['nfforwardmac'].append({
-        'key': dstnf['nfids'][g_index],
-        'srcMAC': nfrsrc['mac'],
-        'dstMAC': dstintf['mac'],
-        'ePort': nfrdstport,
-        'serviceId': serviceid
-        })
+      entry = {
+          "table": "NFRouter",
+          "action": "NFForwardMAC",
+          "keys": {
+            "serviceId": serviceid,
+            "locationId": locationId,
+            "nextNF": dstnf['nfids'][g_index]
+            },
+          "actionParameters": {
+            "port": nfrdstport,
+            "srcMAC": nfrsrc['mac'],
+            "dstMAC": dstintf['mac']
+            }
+          }
+      addcpentry(nfrdst['entries'], entry)
       # TODO investigate if in multinode scenario the srcMAC should be nfrdst's MAC?
     elif dstnf['domain'] == 'external':
       entry = {
-        'key': dstnf['nfids'][g_index],
-        'srcMAC': nfrsrc['mac'],
-        'dstMAC': dstintf['mac'],
-        'ePort': nfrdstport,
-        'serviceId': serviceid
-        }
-      if entry not in nfrdst['tables']['fwdexternal']:
-        nfrdst['tables']['fwdexternal'].append(entry)
+          "table": "NFRouter",
+          "action": "NFForwardToExternal",
+          "keys": {
+            "serviceId": serviceid,
+            "locationId": locationId,
+            "nextNF": dstnf['nfids'][g_index]
+            },
+          "actionParameters": {
+            "port": nfrdstport,
+            "srcMAC": nfrsrc['mac'],
+            "dstMAC": dstintf['mac']
+            }
+          }
+      addcpentry(nfrdst['entries'], entry)
     if srcnf['node'] != dstnf['node']:
       ifname = f"{srcnf['node']}-{dstnf['node']}-1"
       port = getifindex(nfrsrc, ifname)
@@ -218,35 +243,54 @@ def addroutetonfr(infs, nfrsrc, nfrdst, srcnf, srcintfname, dstnf, dstintfname, 
       dstifname = f"{dstnf['node']}-sriov-1"
 
       # TODO srcMAC should be this?
-      nfrsrc['tables']['nfforwardmac'].append({
-        'key': dstnf['nfids'][g_index],
-        'srcMAC': nfrsrc['mac'],
-        'dstMAC': infs[dstifname]['mac'],
-        'ePort': port,
-        'serviceId': serviceid
-        })
+      entry = {
+          "table": "NFRouter",
+          "action": "NFForwardMAC",
+          "keys": {
+            "serviceId": serviceid,
+            "locationId": locationId,
+            "nextNF": dstnf['nfids'][g_index]
+            },
+          "actionParameters": {
+            "port": port,
+            "srcMAC": nfrsrc['mac'],
+            "dstMAC": infs[dstifname]['mac']
+            }
+          }
+      addcpentry(nfrsrc['entries'], entry)
 
 def changenfrtogw(nfr):
   # if bmv2
-  if nfr['image'] == 'desire6g/d6g-gw-v4-controlplane:latest':
+  if nfr['is_edge'] == True:
     return
 
   nfr['is_edge'] = True
   nfr['ip'] = generate_ip()
   #nfr['mac'] = generate_mac()
-  nfr['tables']['arp_responder'].append({'arp_op': 1, 'ip': nfr['ip'], 'mac': nfr['mac']})
-  nfr['tables']['icmp_responder'].append({'ip': nfr['ip'], 'mac': nfr['mac']})
-  nfr['image'] = 'desire6g/d6g-gw-v4-controlplane:latest'
-  nfr['cmd'] = '/p4runtime-sh/venv/bin/python  /src/d6g-gw-v4/control-plane/d6g-gw-v4-cp.py'
-  #d['cmd'] = 'trap : TERM INT; sleep infinity & wait'
 
 def addnfr(services, node):
+  entry = {
+      "table": "arp_responder_v4",
+      "action": "arp_reply",
+      "keys": {"hdr.arp.oper": 1, "hdr.arp_ipv4.tpa": nfr['ip']},
+      "actionParameters": {"my_mac": nfr['mac']}
+      }
+  addcpentry(nfr['entries'], entry)
+  entry = {
+      "table": "icmp_responder_v4",
+      "action": "icmp_reply",
+      "keys": {"hdr.ethernet.dstAddr": nfr['mac'], "hdr.ipv4.dstAddr": nfr['ip']},
+      "actionParameters": {}
+      }
+  addcpentry(nfr['entries'], entry)
   infranf_name = 'd6g-gw-v4'
   result = run(['make', '-C', './infra-nfs', infranf_name], capture_output = True, text = True)
   nfr['files'] = [
       {"name": f"{infranf_name}.p4info.txtpb", "path": f"../../infra-nfs/{infranf_name}/data-plane/{infranf_name}.p4info.txtpb"},
       {"name": f"{infranf_name}.json", "path": f"../../infra-nfs/{infranf_name}/data-plane/{infranf_name}.json"}
   ]
+  nfr['cmd'] = f'/p4runtime-sh/venv/bin/python  /local-cp/local-cp.py /opt/nfconfig/{nfr["files"][0]["name"]} /opt/nfconfig/{nfr["files"][1]["name"]}'
+  #nfr['cmd'] = 'trap : TERM INT; sleep infinity & wait'
   if f"nfr-{node}" in services:
     return
   d = {}
@@ -264,18 +308,24 @@ def addnfr(services, node):
     d['sidecar']['image'] = 'desire6g/nfrouter-t4p4s:latest'
     d['sidecar']['cmd'] = '/root/t4p4s/examples/nfr-controlplane/venv/bin/python3 /root/t4p4s/examples/nfr-controlplane/nfr-cp.py'
   elif nfrouter_mode == 'bmv2':
-    d['tables'] = {'nfportclassifier': [], 'fwdge': [], 'nfrouter': [], 'nfforwardmac': [], 'fwdexternal': [], 'upstream': [], 'downstream': [], 'servicemapper': [], 'uemapper': [], 'arp_responder': [], 'icmp_responder': []}
-    d['image'] = 'desire6g/nfrouter-controlplane:latest'
-    d['cmd'] = '/p4runtime-sh/venv/bin/python  /src/nfrouting/control-plane/nfr-cp.py'
+
     infranf_name = 'nfrouting'
     result = run(['make', '-C', './infra-nfs', infranf_name], capture_output = True, text = True)
     d['files'] = [
         {"name": f"{infranf_name}.p4info.txtpb", "path": f"../../infra-nfs/{infranf_name}/data-plane/{infranf_name}.p4info.txtpb"},
         {"name": f"{infranf_name}.json", "path": f"../../infra-nfs/{infranf_name}/data-plane/{infranf_name}.json"}
     ]
+
+    d['entries'] = []
+    d['image'] = 'desire6g/local-cp:latest'
+    d['cmd'] = f'/p4runtime-sh/venv/bin/python  /local-cp/local-cp.py /opt/nfconfig/{d["files"][0]["name"]} /opt/nfconfig/{d["files"][1]["name"]}'
     #d['cmd'] = 'trap : TERM INT; sleep infinity & wait'
 
   services[f"nfr-{node}"] = d
+
+def addcpentry(entries, entry):
+  if entry not in entries:
+    entries.append(entry)
 
 def addcmdtonfr(nfr, services, interfaces, is_edge):
   anymemif = False
@@ -329,16 +379,6 @@ def addcmdtonfr(nfr, services, interfaces, is_edge):
   elif nfrouter_mode == 't4p4s':
     nfr['cmd'] = SingleQuotedScalarString(f'echo "nfroutereal -> ealopts += { ealopts }" >> /root/t4p4s/opts_dpdk.cfg;echo "nfrouterports -> cmdopts += { cmdopts }" >> /root/t4p4s/opts_dpdk.cfg;P4PI=/root/t4p4s/third_party/PI GRPCPP=/root/t4p4s/third_party/P4Runtime_GRPCPP GRPC=/root/t4p4s/third_party/grpc PYTHON3=/root/t4p4s/.venv/bin/python /root/t4p4s/t4p4s.sh :nfrouter p4rt dbg verbose')
   elif nfrouter_mode == 'bmv2':
-    if is_edge:
-      nfr['sidecar'] = {}
-      nfr['sidecar']['image'] = 'desire6g/d6g-gw-v4-bmv2:latest'
-      nfr['sidecar']['cmd'] = SingleQuotedScalarString(f'simple_switch_grpc --log-console --device-id 1 {bmv2opts} /src/d6g-gw-v4/data-plane/d6g-gw-v4.json -- --grpc-server-addr 0.0.0.0:50051')
-      #nfr['sidecar']['cmd'] = SingleQuotedScalarString('trap : TERM INT; sleep infinity & wait')
-    else:
-      nfr['sidecar'] = {}
-      nfr['sidecar']['image'] = 'desire6g/nfrouter-bmv2:latest'
-      nfr['sidecar']['cmd'] = SingleQuotedScalarString(f'simple_switch_grpc --log-console --device-id 1 {bmv2opts} /src/nfrouting/data-plane/p4-v1model/nfrouting.json -- --grpc-server-addr 0.0.0.0:50051')
-      #nfr['sidecar']['cmd'] = SingleQuotedScalarString('trap : TERM INT; sleep infinity & wait')
     nfr['sidecar'] = {}
     nfr['sidecar']['image'] = 'desire6g/simple-switch-bmv2:latest'
     nfr['sidecar']['cmd'] = SingleQuotedScalarString(f'simple_switch_grpc --log-console --device-id 1 {bmv2opts} /opt/nfconfig/{nfr["files"][1]["name"]} -- --grpc-server-addr 0.0.0.0:50051')
@@ -379,6 +419,40 @@ def parse_siteconfig(path):
     except Exception as ex:
       response = (f'{type(ex).__name__}: {ex.args}', 500)
       traceback.print_exc()
+
+def addue2smentries():
+  # TODO this should be done with external -> external?
+  entry = {
+      "table": "ModeSelector",
+      "action": "setUpstreamMode4" if graph_direction == 'upstream' else "setDownstreamMode4",
+      "keys": {"ingress_port": nfrsrcport},
+      "actionParameters": {}
+      }
+  addcpentry(nfrsrc['entries'], entry)
+
+  relevantues = [srcnf['ip']] if graph_direction == 'upstream' and srcnf['is-ue'] else ueids
+  for ueid in relevantues:
+    smentry = {
+        "table": "ServiceMapper",
+        "action": "setD6GService",
+        "keys": {
+          "direction": 0 if graph_direction == 'upstream' else 1,
+          "ueid": f"{ueid}/32"},
+        "actionParameters": {
+          "serviceId": graph_service_id,
+          "nextNF": dstnf['nfids'][g_index]
+          }
+        }
+    addcpentry(nfrsrc['entries'], smentry)
+    uemapentry = {
+        "table": "UEMapper",
+        "action": "UEMapping",
+        "keys": {"ueid": ueid},
+        "actionParameters": {"locationId": data['location-id']}
+        }
+    addcpentry(nfrsrc['entries'], uemapentry)
+
+# def addGWentries():
 
 def generate_values(nsd, path):
   global nfrouter_mode
@@ -467,36 +541,44 @@ def generate_values(nsd, path):
           addif(data['interfaces'], dstnf['node'], "sriov", 1)
           addtonf(nfrsrc, f"{srcnf['node']}-sriov-1", f"{srcnf['node']}-{dstnf['node']}-1")
 
-        addroutetonfr(data['interfaces'], nfrsrc, nfrdst, srcnf, srcintf, dstnf, dstintf, graph_service_id, g_index, l_index)
+        addroutetonfr(data['interfaces'], nfrsrc, nfrdst, srcnf, srcintf, dstnf, dstintf, graph_service_id, g_index, l_index, data['location-id'])
 
         #if srcnf['domain'] == 'external' and dstnf['domain'] == 'internal':
         if srcnf['domain'] == 'external':
           changenfrtogw(nfrsrc)
           # TODO refactor this into addue2smentries
+          #addue2smentries()
           nfrsrcport = getifindex(nfrsrc, srcintf)
-          entry = {'key': nfrsrcport}
 
-          # TODO this should be done with external -> external?
-          if entry not in nfrsrc['tables'][graph_direction]:
-            nfrsrc['tables'][graph_direction].append(entry)
+          entry = {
+              "table": "ModeSelector",
+              "action": "setUpstreamMode4" if graph_direction == 'upstream' else "setDownstreamMode4",
+              "keys": {"ingress_port": nfrsrcport},
+              "actionParameters": {}
+              }
+          addcpentry(nfrsrc['entries'], entry)
 
-          relevantues = [srcnf['ip']] if graph_direction == 'upstream' and srcnf['is-ue'] else ueids
+          relevantues = [srcnf['ips'][srcifindex]] if graph_direction == 'upstream' and srcnf['is-ue'] else ueids
           for ueid in relevantues:
             smentry = {
-              'dir': 0 if graph_direction == 'upstream' else 1,
-              'ueid': f"{ueid}/32",
-              'serviceId': graph_service_id,
-              'nextNF': dstnf['nfids'][g_index]
-              }
-            if smentry not in nfrsrc['tables']['servicemapper']:
-              nfrsrc['tables']['servicemapper'].append(smentry)
-
-            uemapentry = {
-                'ueid': ueid,
-                'locationId': data['location-id']
+                "table": "ServiceMapper",
+                "action": "setD6GService",
+                "keys": {
+                  "direction": 0 if graph_direction == 'upstream' else 1,
+                  "ueid": f"{ueid}/32"},
+                "actionParameters": {
+                  "serviceId": graph_service_id,
+                  "nextNF": dstnf['nfids'][g_index]
+                  }
                 }
-            if uemapentry not in nfrsrc['tables']['uemapper']:
-              nfrsrc['tables']['uemapper'].append(uemapentry)
+            addcpentry(nfrsrc['entries'], smentry)
+            uemapentry = {
+                "table": "UEMapper",
+                "action": "UEMapping",
+                "keys": {"ueid": ueid},
+                "actionParameters": {"locationId": data['location-id']}
+                }
+            addcpentry(nfrsrc['entries'], uemapentry)
 
         if srcnf['domain'] == 'external':
           # TODO refactor this into addroutetoinit
@@ -553,7 +635,7 @@ def deploy_yaml():
 
       need_cp = []
       for s in data['services']:
-        if 'tables' in data['services'][s]:
+        if 'entries' in data['services'][s]:
           need_cp.append(s)
 
       w = watch.Watch()
@@ -566,75 +648,13 @@ def deploy_yaml():
                 mgmt_ip = event['object'].status.pod_ip
                 print(s)
 
-                for t in data['services'][s]['tables']:
-                  for e in data['services'][s]['tables'][t]:
-                    endpoint = ''
-                    body = {}
-                    if t == 'nfportclassifier':
-                      endpoint = 'NFPortClassifier'
-                      body['ingress_port'] = e['key']
-                    elif t == 'fwdge':
-                      endpoint = 'FWDGExecute'
-                      body['nextNF'] = e['key']
-                      body['ingress_port'] = e['ingress_port']
-                      body['serviceId'] = e['serviceId']
-                      body['nfid'] = e['nfid']
-                    elif t == 'nfrouter':
-                      endpoint = 'NFForward'
-                      body['nextNF'] = e['key']
-                      body['serviceId'] = e['serviceId']
-                      body['locationId'] = data['location-id']
-                      body['port'] = e['ePort']
-                    elif t == 'nfforwardmac':
-                      endpoint = 'NFForwardMAC'
-                      body['nextNF'] = e['key']
-                      body['serviceId'] = e['serviceId']
-                      body['locationId'] = data['location-id']
-                      body['port'] = e['ePort']
-                      body['srcMAC'] = e['srcMAC']
-                      body['dstMAC'] = e['dstMAC']
-                    elif t == 'fwdexternal':
-                      endpoint = 'NFForwardExternal'
-                      body['nextNF'] = e['key']
-                      body['serviceId'] = e['serviceId']
-                      body['locationId'] = data['location-id']
-                      body['port'] = e['ePort']
-                      body['srcMAC'] = e['srcMAC']
-                      body['dstMAC'] = e['dstMAC']
-                    elif t == 'upstream':
-                      endpoint = 'setUpstreamMode4'
-                      body['ingress_port'] = e['key']
-                    elif t == 'downstream':
-                      endpoint = 'setDownstreamMode4'
-                      body['ingress_port'] = e['key']
-                    elif t == 'servicemapper':
-                      endpoint = 'setD6GService'
-                      body['direction'] = e['dir']
-                      body['ueid'] = e['ueid']
-                      body['serviceId'] = e['serviceId']
-                      body['nextNF'] = e['nextNF']
-                    elif t == 'uemapper':
-                      endpoint = 'UEMapping'
-                      body['ueid'] = e['ueid']
-                      body['locationId'] = e['locationId']
-                    elif t == 'arp_responder':
-                      endpoint = 'arp_reply'
-                      body['arp_oper'] = e['arp_op']
-                      body['arp_tpa'] = e['ip']
-                      body['my_mac'] = e['mac']
-                    elif t == 'icmp_responder':
-                      endpoint = 'icmp_reply'
-                      body['macdst'] = e['mac']
-                      body['ipdst'] = e['ip']
-                    print(endpoint)
-                    print(body)
-
-                    url = f'http://{mgmt_ip}:5000/api/{endpoint}'
-                    x = requests.post(url, json = body)
-                    print(x.json())
-                    if x.status_code != 200:
-                      raise Exception(f"Controlplane error: {x.json()}")
-
+                for e in data['services'][s]['entries']:
+                  print(e)
+                  url = f'http://{mgmt_ip}:5000/api/tables/'
+                  x = requests.post(url, json = e)
+                  print(x.json())
+                  if x.status_code != 200:
+                    raise Exception(f"Controlplane error: {x.json()}")
                 need_cp.remove(s)
                 print('---')
             if not need_cp:
