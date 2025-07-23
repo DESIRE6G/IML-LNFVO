@@ -43,6 +43,8 @@ struct header_t {
     arp_ipv4_h arp_ipv4;
 }
 
+#include "../../nfrouting/data-plane/nfr-control.p4"
+
 parser NFIngressParser(
         packet_in pkt,
         out header_t hdr,
@@ -119,90 +121,6 @@ parser NFIngressParser(
 /*************************************************************************
 **************  I N G R E S S   P R O C E S S I N G   *******************
 *************************************************************************/
-
-control NFR(inout header_t hdr,
-        inout ingress_metadata_t ig_md,
-#ifdef __TARGET_TOFINO__
-        inout ingress_intrinsic_metadata_for_deparser_t ig_dprsr_md,
-        inout ingress_intrinsic_metadata_for_tm_t ig_tm_md
-#else
-	inout standard_metadata_t standard_metadata
-#endif
-) {
-
-    action drop2() {
-#ifdef __TARGET_TOFINO__
-        ig_dprsr_md.drop_ctl = ig_dprsr_md.drop_ctl | 0b001;
-#else
-        mark_to_drop(standard_metadata);
-#endif
-        exit;
-    }
-
-    table NFPortClassifier {
-        key = {
-            RXPORT : exact;
-        }
-        actions = {
-            NoAction;drop2;
-        }
-        size = 1000;
-        default_action = NoAction();
-    }
-
-    action UpdateNF(bit<16> nfid) {
-        hdr.d6gmain.nextNF = nfid;
-    }
-
-    table FWDGExecute {
-        key = {
-            RXPORT : exact;
-            hdr.d6gmain.serviceId : exact;
-            hdr.d6gmain.nextNF : exact;
-        }
-        actions = {
-            NoAction; UpdateNF;
-        }
-        size = 10000;
-        default_action = NoAction();
-    }
-
-    action NFForwardMAC(bit<9> port, bit<48> srcMAC, bit<48> dstMAC) {
-        TXPORT = port;
-        hdr.ethernet.srcAddr = srcMAC;
-        hdr.ethernet.dstAddr = dstMAC;
-    }
-
-    action NFForwardToExternal(bit<9> port, bit<48> srcMAC, bit<48> dstMAC) {
-        TXPORT = port;
-        hdr.ethernet.srcAddr = srcMAC;
-        hdr.ethernet.dstAddr = dstMAC;
-        hdr.ethernet.etherType = hdr.d6gmain.nextHeader;
-        hdr.d6gmain.setInvalid();
-    }
-
-    table NFRouter {
-        key = {
-            hdr.d6gmain.serviceId    : exact;
-            hdr.d6gmain.locationId   : exact;
-            hdr.d6gmain.nextNF       : exact;
-        }
-        actions = {
-            NFForwardMAC;NFForwardToExternal;drop2;
-        }
-        size = 10000;
-        default_action = drop2();
-    }
-
-    apply {
-        if (hdr.d6gmain.isValid()) {
-            if (NFPortClassifier.apply().hit) {
-                FWDGExecute.apply();
-            }
-            NFRouter.apply();
-        }
-    }
-}
 
 control NFIngress(
         inout header_t hdr,
