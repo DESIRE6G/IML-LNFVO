@@ -59,6 +59,9 @@ control NFIngress(
     }
 
     apply {
+        if (!hdr.d6gmain.isValid())
+            drop();
+
         bit<48> tmp_mac = hdr.ethernet.dstAddr;
         hdr.ethernet.dstAddr = hdr.ethernet.srcAddr;
         hdr.ethernet.srcAddr = tmp_mac;
