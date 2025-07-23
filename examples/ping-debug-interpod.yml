@@ -11,6 +11,11 @@ lnsd:
     default-nfrouter-mode: "bmv2"
     default-interpod-mode: 'br'
 
+    infra-nfs:
+      - instance-id: "nfr-epyc1"
+        static-mac: "02:77:77:77:77:77"
+        static-ip: "11.13.13.13"
+
     network-functions:
       - instance-id: "dummy"
         id: "reflector-bmv2"
