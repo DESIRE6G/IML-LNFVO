@@ -301,6 +301,12 @@ def addnfr(services, node, infranfs):
   d['name'] = f'simple-switch-{nfrouter_mode}'
   d['node'] = node
   d['mac'] = generate_mac()
+  if infranfs:
+    nfr = next((i for i in infranfs if i['instance-id'] == f"nfr-{node}"), None)
+    if nfr:
+      d['mac'] = nfr['static-mac']
+      d['ip'] = nfr['static-ip']
+
   d['is_edge'] = False
   if nfrouter_mode == 'dpdk':
     d['files'] = {}
@@ -536,8 +542,8 @@ def generate_values(nsd, path):
         addtonf(srcnf, srcintf, srcintf, srcnf['macs'], srcnf['ips'], srcifindex, getnextmemifid(srcid) if interpod_mode == 'memif' else None)
         addtonf(dstnf, dstintf, dstintf, dstnf['macs'], dstnf['ips'], dstifindex, getnextmemifid(dstid) if interpod_mode == 'memif' else None)
 
-        addnfr(data['services'], srcnf['node'])
-        addnfr(data['services'], dstnf['node'])
+        addnfr(data['services'], srcnf['node'], nsd['lnsd']['ns'].get('infra-nfs'))
+        addnfr(data['services'], dstnf['node'], nsd['lnsd']['ns'].get('infra-nfs'))
 
         nfrsrc = data['services'][f"nfr-{srcnf['node']}"]
         nfrdst = data['services'][f"nfr-{dstnf['node']}"]
