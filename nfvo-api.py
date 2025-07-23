@@ -151,7 +151,7 @@ def getifindex(nf, intf):
   x = next(i for i, dic in enumerate(nf['interfaces']) if dic['interface'] == intf)
   return x
 
-def addtonf(nf, name, intf, mac=None, ip=None, memifid=None):
+def addtonf(nf, name, intf, macs=None, ips=None, ifindex=None, memifid=None):
   if 'interfaces' not in nf:
     nf['interfaces'] = []
   x = next((i for i in nf['interfaces'] if i['interface'] == intf), None)
@@ -163,11 +163,15 @@ def addtonf(nf, name, intf, mac=None, ip=None, memifid=None):
   i['name'] = name
   if memifid is not None:
     i['memifid'] = memifid
-  if mac:
-    i['mac'] = SingleQuotedScalarString(mac)
-  if ip:
-    i['ip'] = ip
-    addiptoinit(nf, ip, intf, memifid, mac)
+  if macs is not None:
+    if ifindex not in macs:
+      macs[ifindex] = generate_mac()
+    i['mac'] = SingleQuotedScalarString(macs[ifindex])
+  if ips is not None:
+    if ifindex not in ips:
+      ips[ifindex] = generate_ip()
+    i['ip'] = ips[ifindex]
+    addiptoinit(nf, ips[ifindex], intf, memifid, macs[ifindex])
   nf['interfaces'].append(i)
 
 def addroutetonfr(infs, nfrsrc, nfrdst, srcnf, srcintfname, dstnf, dstintfname, serviceid, g_index, l_index, locationId):
@@ -265,10 +269,9 @@ def changenfrtogw(nfr):
     return
 
   nfr['is_edge'] = True
-  nfr['ip'] = generate_ip()
-  #nfr['mac'] = generate_mac()
 
-def addnfr(services, node):
+  if 'ip' not in nfr:
+    nfr['ip'] = generate_ip()
   entry = {
       "table": "arp_responder_v4",
       "action": "arp_reply",
@@ -291,13 +294,13 @@ def addnfr(services, node):
   ]
   nfr['cmd'] = f'/p4runtime-sh/venv/bin/python  /local-cp/local-cp.py /opt/nfconfig/{nfr["files"][0]["name"]} /opt/nfconfig/{nfr["files"][1]["name"]}'
   #nfr['cmd'] = 'trap : TERM INT; sleep infinity & wait'
+def addnfr(services, node, infranfs):
   if f"nfr-{node}" in services:
     return
   d = {}
   d['name'] = f'simple-switch-{nfrouter_mode}'
   d['node'] = node
   d['mac'] = generate_mac()
-  d['files'] = {}
   d['is_edge'] = False
   if nfrouter_mode == 'dpdk':
     d['files'] = {}
@@ -402,8 +405,17 @@ def addnf(services, nf, domain, gs, name=None):
   s['domain'] = domain
   s['nfids'] = getnextnfids(gs, nf.get('static-nfids'))
   s['mac'] = generate_mac(nf.get('static-mac'))
+  #s['macs'] = [generate_mac(nf.get('static-mac'))]
+  s['macs'] = {}
+  if 'static-macs' in nf:
+    for idx, val in enumerate(nf['static-macs']):
+      s['macs'][str(idx+1)] = val
   # ip for internal nf-s are not needed?
-  s['ip'] = generate_ip(nf.get('static-ip'))
+  #s['ips'] = [generate_ip(nf.get('static-ip'))]
+  s['ips'] = {}
+  if 'static-ips' in nf:
+    for idx, val in enumerate(nf['static-ips']):
+      s['ips'][str(idx+1)] = val
   s['interfaces'] = []
   s['is-ue'] = nf.get('is-ue', False)
   s['env'] = {}
@@ -481,20 +493,22 @@ def generate_values(nsd, path):
       graph_service_id = g.get('service-id', data['default-service-id'])
 
       # TODO refactor with filter or something? (and make a function)
-      #ueids = getueidsofgraph(links, graph_directionz)
+      #ueids = getueidsofgraph(links, graph_direction)
       ueids = []
       afids = []
       for l in g['links']:
         if graph_direction == 'upstream':
-          nfid, _ = l['connection-points'][0]['if-id-ref'].split(':')
-          afid, _ = l['connection-points'][1]['if-id-ref'].split(':')
+          nfid, nfifidx = l['connection-points'][0]['if-id-ref'].split(':')
+          afid, afifidx = l['connection-points'][1]['if-id-ref'].split(':')
         else:
-          afid, _ = l['connection-points'][0]['if-id-ref'].split(':')
-          nfid, _ = l['connection-points'][1]['if-id-ref'].split(':')
+          afid, afifidx = l['connection-points'][0]['if-id-ref'].split(':')
+          nfid, nfifidx = l['connection-points'][1]['if-id-ref'].split(':')
         nf = data['services'][nfid]
         af = data['services'][afid]
         if nf['is-ue']:
-          ueids.append(nf['ip'])
+          if nfifidx not in nf['ips']:
+            nf['ips'][nfifidx] = generate_ip()
+          ueids.append(nf['ips'][nfifidx])
 
         anyaf = False
         for i in nsd['lnsd']['ns']['application-functions']:
@@ -502,7 +516,9 @@ def generate_values(nsd, path):
             anyaf = True
             break
         if anyaf:
-          afids.append(af['ip'])
+          if afifidx not in af['ips']:
+            af['ips'][afifidx] = generate_ip()
+          afids.append(af['ips'][afifidx])
 
       for l_index, l in enumerate(g['links']):
         interpod_mode = l.get("interpod-mode", data['default-interpod-mode'])
@@ -517,8 +533,8 @@ def generate_values(nsd, path):
         addif(data['interfaces'], dstid, interpod_mode, dstifindex)
         srcintf = f'{srcid}-{interpod_mode}-{srcifindex}'
         dstintf = f'{dstid}-{interpod_mode}-{dstifindex}'
-        addtonf(srcnf, srcintf, srcintf, srcnf['mac'], srcnf['ip'], getnextmemifid(srcid) if interpod_mode == 'memif' else None)
-        addtonf(dstnf, dstintf, dstintf, dstnf['mac'], dstnf['ip'], getnextmemifid(dstid) if interpod_mode == 'memif' else None)
+        addtonf(srcnf, srcintf, srcintf, srcnf['macs'], srcnf['ips'], srcifindex, getnextmemifid(srcid) if interpod_mode == 'memif' else None)
+        addtonf(dstnf, dstintf, dstintf, dstnf['macs'], dstnf['ips'], dstifindex, getnextmemifid(dstid) if interpod_mode == 'memif' else None)
 
         addnfr(data['services'], srcnf['node'])
         addnfr(data['services'], dstnf['node'])
