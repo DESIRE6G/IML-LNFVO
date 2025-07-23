@@ -321,7 +321,7 @@ def addnfr(services, node, infranfs):
     d['sidecar']['cmd'] = '/root/t4p4s/examples/nfr-controlplane/venv/bin/python3 /root/t4p4s/examples/nfr-controlplane/nfr-cp.py'
   elif nfrouter_mode == 'bmv2':
 
-    infranf_name = 'nfrouting'
+    infranf_name = 'nfrouter'
     result = run(['make', '-C', './infra-nfs', infranf_name], capture_output = True, text = True)
     d['files'] = [
         {"name": f"{infranf_name}.p4info.txtpb", "path": f"../../infra-nfs/{infranf_name}/data-plane/{infranf_name}.p4info.txtpb"},

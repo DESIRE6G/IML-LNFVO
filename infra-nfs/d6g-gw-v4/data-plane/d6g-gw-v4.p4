@@ -43,7 +43,7 @@ struct header_t {
     arp_ipv4_h arp_ipv4;
 }
 
-#include "../../nfrouting/data-plane/nfr-control.p4"
+#include "../../nfrouter/data-plane/nfr-control.p4"
 
 parser NFIngressParser(
         packet_in pkt,
