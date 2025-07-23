@@ -12,7 +12,6 @@ lnsd:
     default-interpod-mode: 'br'
 
     site-connections: []
-    unmanaged-functions: []
     network-functions: []
 
     application-functions:

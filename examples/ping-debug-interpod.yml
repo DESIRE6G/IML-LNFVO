@@ -20,7 +20,6 @@ lnsd:
         static-nfids: [23,26]
         static-mac: "02:66:66:66:66:66"
 
-    unmanaged-functions: []
 
     application-functions:
       - instance-id: "pkt-dst"
