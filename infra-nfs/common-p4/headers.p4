@@ -3,6 +3,7 @@
 
 // HEADERS AND TYPES ************************************************************
 
+typedef bit<9>  egressSpec_t;
 typedef bit<48> macAddr_t;
 typedef bit<32> ip4Addr_t;
 
@@ -44,7 +45,7 @@ header arp_ipv4_h {
 }
 
 // VXLAN -- RFC 7348
-header vxlan_h {
+header vxlan_t {
     bit<8> flags;
     bit<24> reserved;
     bit<24> vni;
@@ -80,6 +81,13 @@ header ipv6_t {
     bit<128> dstAddr;
 }
 
+header udp_t {
+    bit<16> src_port;
+    bit<16> dst_port;
+    bit<16> length_;
+    bit<16> checksum;
+}
+
 #define ETHERTYPE_VLAN 16w0x8100 // IEEE 802.1Q
 #define ETHERTYPE_IPV4 16w0x0800
 #define ETHERTYPE_IPV6 16w0x86DD
@@ -101,6 +109,14 @@ const ip_proto_t IPPROTO_ICMP = 1;
 const ip_proto_t IPPROTO_IP   = 4;
 const ip_proto_t IPPROTO_TCP  = 6;
 const ip_proto_t IPPROTO_UDP  = 17;
+
+const bit<16> UDP_PORT_VXLAN = 4789;
+
+#define ETH_HDR_SIZE 14
+#define D6G_HDR_SIZE 9
+#define IPV4_HDR_SIZE 20
+#define UDP_HDR_SIZE 8
+#define VXLAN_HDR_SIZE 8
 
 // DESIRE6G HEADER AND ITS OPTIONS
 
