@@ -5,7 +5,7 @@ all: $(NFS)
 .SECONDEXPANSION:
 $(NFS): % : $$*/data-plane/$$*.json
 
-%.json : %.p4
+%.json: %.p4
 	docker run --rm --user $$(id -u):$$(id -g) -v ./:/src p4lang/p4c:1.2.5.0 p4c-bm2-ss --std p4-16 --p4runtime-files /src/$*.p4info.txtpb -o /src/$@ /src/$^
 
 clean:
