@@ -1,8 +1,12 @@
 #include <core.p4>
+#if __TARGET_TOFINO__ == 2
+#include <t2na.p4>
+#else
 #ifdef __TARGET_TOFINO__
 #include <tna.p4>
 #else
 #include <v1model.p4>
+#endif
 #endif
 
 #include "../../common-p4/headers.p4"
@@ -21,9 +25,9 @@
 
 struct ingress_metadata_t {
     bit<32> ueid;
-    bit<1>   direction; // 0-upstream, 1-downstream
+    bit<1>  direction;
 #ifdef __TARGET_TOFINO__
-    bit<16>  icmp_cs_tmp;
+    bit<16> icmp_cs_tmp;
 #endif
 }
 
@@ -377,7 +381,7 @@ control NFIngressDeparser(
         in ingress_metadata_t ig_md,
         in ingress_intrinsic_metadata_for_deparser_t ig_dprsr_md
 #else
-	in header_t hdr
+        in header_t hdr
 #endif
 ) {
 #ifdef __TARGET_TOFINO__
@@ -387,7 +391,10 @@ control NFIngressDeparser(
     apply {
 #ifdef __TARGET_TOFINO__
         if (hdr.icmp.isValid()) {
-	        hdr.icmp.checksum = cs.update({ hdr.icmp.icmp_type, ig_md.icmp_cs_tmp});
+	        hdr.icmp.checksum = cs.update(
+                {
+                    hdr.icmp.icmp_type, ig_md.icmp_cs_tmp
+                });
         }
 #endif
         pkt.emit(hdr.ethernet);
@@ -423,7 +430,7 @@ control NFEgress(
         inout egress_intrinsic_metadata_for_deparser_t eg_intr_md_for_dprsr,
         inout egress_intrinsic_metadata_for_output_port_t eg_intr_md_for_oport) {
 
-   apply {  }
+    apply { }
 }
 
 control NFEgressDeparser(
@@ -432,35 +439,37 @@ control NFEgressDeparser(
         in egress_metadata_t eg_md,
         in egress_intrinsic_metadata_for_deparser_t eg_dprsr_md) {
 
-    apply {  }
+    apply { }
 }
 
-Pipeline(NFIngressParser(),
-         NFIngress(),
-         NFIngressDeparser(),
-         NFEgressParser(),
-         NFEgress(),
-         NFEgressDeparser()) pipe;
-         Switch(pipe) main;
+Pipeline(
+        NFIngressParser(),
+        NFIngress(),
+        NFIngressDeparser(),
+        NFEgressParser(),
+        NFEgress(),
+        NFEgressDeparser()) pipe;
+        Switch(pipe) main;
 #else
 
 control MyVerifyChecksum(inout header_t hdr, inout ingress_metadata_t ig_md) {
-    apply {  }
+
+    apply { }
 }
 
 control MyEgress(inout header_t hdr,
                  inout ingress_metadata_t ig_md,
                  inout standard_metadata_t standard_metadata) {
-    apply {  }
+
+    apply { }
 }
 
 
 control MyComputeChecksum(inout header_t hdr, inout ingress_metadata_t ig_md) {
-    apply {
 
-        //update ICMP checksum
+    apply {
         update_checksum_with_payload(
-	    hdr.icmp.isValid(),
+	        hdr.icmp.isValid(),
             {
               hdr.icmp.icmp_type,
               hdr.icmp.icmp_code,
@@ -468,8 +477,8 @@ control MyComputeChecksum(inout header_t hdr, inout ingress_metadata_t ig_md) {
               hdr.icmp.identifier,
               hdr.icmp.sequence_number,
             },
-              hdr.icmp.checksum,
-              HashAlgorithm.csum16);
+            hdr.icmp.checksum,
+            HashAlgorithm.csum16);
 
         //update IPv4 checksum TODO is this needed?
         update_checksum(
@@ -491,15 +500,16 @@ control MyComputeChecksum(inout header_t hdr, inout ingress_metadata_t ig_md) {
               hdr.ipv4.srcAddr,
               hdr.ipv4.dstAddr
             },
-              hdr.ipv4.hdrChecksum,
-              HashAlgorithm.csum16);
+            hdr.ipv4.hdrChecksum,
+            HashAlgorithm.csum16);
     }
 }
 
-V1Switch(NFIngressParser(),
-         MyVerifyChecksum(),
-         NFIngress(),
-         MyEgress(),
-         MyComputeChecksum(),
-         NFIngressDeparser()) main;
+V1Switch(
+        NFIngressParser(),
+        MyVerifyChecksum(),
+        NFIngress(),
+        MyEgress(),
+        MyComputeChecksum(),
+        NFIngressDeparser()) main;
 #endif
