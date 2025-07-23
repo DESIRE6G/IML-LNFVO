@@ -413,7 +413,6 @@ def addnf(services, nf, domain, gs, name=None):
   s['node'] = nf['node']
   s['domain'] = domain
   s['nfids'] = getnextnfids(gs, nf.get('static-nfids'))
-  s['mac'] = generate_mac(nf.get('static-mac'))
   #s['macs'] = [generate_mac(nf.get('static-mac'))]
   s['macs'] = {}
   if 'static-macs' in nf:
