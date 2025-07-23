@@ -1,4 +1,5 @@
 import os
+import sys
 from ruamel.yaml import YAML
 from ruamel.yaml.scalarstring import SingleQuotedScalarString,DoubleQuotedScalarString
 import json
@@ -28,6 +29,8 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 config.load_kube_config()
 core_v1 = client.CoreV1Api()
+
+global predeployed
 
 if not os.path.exists(UPLOAD_FOLDER):
   os.makedirs(UPLOAD_FOLDER)
@@ -427,12 +430,19 @@ def addnf(services, nf, domain, gs, name=None):
   s['env'] = {}
   services[nf['instance-id']] = s
 
+predeployed = {}
 def parse_siteconfig(path):
+  pd = {}
+  if not os.path.isfile(path):
+    pd['predeployed-afs'] = []
+    return pd
 
   with open(path, 'r') as f:
     try:
       yaml=YAML(typ='safe')
       sconfig = yaml.load(f)
+      pd['predeployed-afs'] = sconfig['predeployed-afs']
+      return pd
 
     except Exception as ex:
       response = (f'{type(ex).__name__}: {ex.args}', 500)
@@ -473,6 +483,7 @@ def addue2smentries():
 # def addGWentries():
 
 def generate_values(nsd, path):
+  global predeployed
   global nfrouter_mode
   with open(path, 'w') as f:
     data = {}
@@ -490,7 +501,7 @@ def generate_values(nsd, path):
     for i in nsd['lnsd']['ns']['application-functions']:
       addnf(data['services'], i, i['domain'], gs)
 
-    for i in nsd['lnsd']['ns']['unmanaged-functions']:
+    for i in predeployed['predeployed-afs']:
       addnf(data['services'], i, i['domain'], gs, 'unmanaged')
 
     for g_index, g in enumerate(nsd['lnsd']['ns']['forwarding_graphs']):
@@ -689,5 +700,8 @@ def deploy_yaml():
   return jsonify({"response": response[0]}), response[1]
 
 if __name__ == "__main__":
-  parse_siteconfig("./site-config.yml")
+  path = "./site-config.yml"
+  if len( sys.argv ) > 1:
+    path = sys.argv[1]
+  predeployed = parse_siteconfig(path)
   app.run(host='0.0.0.0', debug=True)
