@@ -1,3 +1,5 @@
+#ifndef COMMON_PARSERS_H
+#define COMMON_PARSERS_H
 parser TofinoIngressParser(
         packet_in pkt,
         out ingress_intrinsic_metadata_t ig_intr_md) {
@@ -36,4 +38,4 @@ parser TofinoEgressParser(
     }
 
 }
-
+#endif

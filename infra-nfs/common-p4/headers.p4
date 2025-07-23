@@ -1,3 +1,6 @@
+#ifndef COMMON_HEADERS_H
+#define COMMON_HEADERS_H
+
 // HEADERS AND TYPES ************************************************************
 
 typedef bit<48> macAddr_t;
@@ -103,10 +106,10 @@ const ip_proto_t IPPROTO_UDP  = 17;
 
 header d6gmain_t {
    bit<16> serviceId; 	// Network service or slice
-   bit<16> locationId; 	// UE location if applicable
+   bit<16> locationId;  // UE location if applicable
    bit<1>  hhFlag;
    bit<7>  _reserved;
-   bit<16> nextNF;	// next network function in the service graph
+   bit<16> nextNF;      // next network function in the service graph
    bit<16> nextHeader;	// identifier of the next header elements
 }
 
@@ -123,4 +126,4 @@ header d6gqos_t {
 // header d6gintv1_t {
 //   ...
 // }
-
+#endif
