@@ -1,5 +1,56 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
+configMapGenerator:
+- name: reflector-config
+  files:
+  - ../../infra-nfs/reflector/data-plane/reflector.p4info.txtpb
+  - ../../infra-nfs/reflector/data-plane/reflector.json
+
 resources:
-- reflector-bmv2.yml
+- ../simple-switch-bmv2
+
+patches:
+- target:
+    kind: Deployment
+  patch: |-
+    - op: replace
+      path: /metadata/name
+      value: reflector-bmv2
+- target:
+    kind: Deployment
+  patch: |-
+    - op: replace
+      path: /spec/template/spec/containers/0/name
+      value: reflector-bmv2
+- patch: |-
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: reflector-bmv2
+    spec:
+      selector:
+        matchLabels:
+          app: reflector-bmv2
+      template:
+        metadata:
+          labels:
+            app: reflector-bmv2
+        spec:
+          containers:
+          - name: reflector-bmv2
+            args: [ '/p4runtime-sh/venv/bin/python  /local-cp/local-cp.py /opt/nfconfig/reflector.p4info.txtpb /opt/nfconfig/reflector.json' ]
+            volumeMounts:
+              - name: nf-config
+                mountPath: /opt/nfconfig
+          initContainers:
+          - name: switch
+            command: [ "/bin/bash", "-c", "--" ]
+            args: [ "PORTS=($(basename -a /sys/class/net/*br*)) simple_switch_grpc --log-console --device-id 1  -i 0@$(basename -a /sys/class/net/*br*) /opt/nfconfig/reflector.json -- --grpc-server-addr 0.0.0.0:50051" ]
+            volumeMounts:
+              - name: nf-config
+                mountPath: /opt/nfconfig
+          volumes:
+          - name: nf-config
+            configMap:
+              name: reflector-config
