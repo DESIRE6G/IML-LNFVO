@@ -8,9 +8,7 @@ struct metadata_t {
 
 struct header_t {
     ethernet_t ethernet;
-    evlan_t evlan;
     d6gmain_t d6gmain;
-    ipv4_t ipv4;
 }
 
 parser NFParser(
@@ -26,25 +24,9 @@ parser NFParser(
     state parse_ethernet {
         pkt.extract(hdr.ethernet);
         transition select(hdr.ethernet.etherType) {
-            ETHERTYPE_VLAN: parse_evlan;
-            ETHERTYPE_IPV4: parse_ipv4;
             ETHERTYPE_D6G:  parse_d6g;
-            default: accept;
+            //default: reject;
         }
-    }
-
-    state parse_evlan {
-        pkt.extract(hdr.evlan);
-        transition select(hdr.evlan.etherType) {
-            ETHERTYPE_IPV4: parse_ipv4;
-            ETHERTYPE_D6G:  parse_d6g;
-            default: accept;
-        }
-    }
-
-    state parse_ipv4 {
-        pkt.extract(hdr.ipv4);
-        transition accept;
     }
 
     state parse_d6g {
@@ -58,7 +40,8 @@ parser NFParser(
  *************************************************************************/
 
 control MyVerifyChecksum(inout header_t hdr, inout metadata_t meta) {
-    apply {  }
+
+    apply { }
 }
 
 /*************************************************************************
@@ -76,9 +59,6 @@ control NFIngress(
     }
 
     apply {
-        if (!hdr.d6gmain.isValid())
-            drop();
-
         bit<48> tmp_mac = hdr.ethernet.dstAddr;
         hdr.ethernet.dstAddr = hdr.ethernet.srcAddr;
         hdr.ethernet.srcAddr = tmp_mac;
@@ -94,8 +74,7 @@ control NFEgress(
         inout metadata_t meta,
         inout standard_metadata_t standard_metadata) {
 
-    apply {}
-
+    apply { }
 }
 
 /*************************************************************************
@@ -103,8 +82,8 @@ control NFEgress(
  *************************************************************************/
 
 control MyComputeChecksum(inout header_t  hdr, inout metadata_t meta) {
-    apply {
-    }
+
+    apply { }
 }
 
 control NFDeparser(
@@ -113,15 +92,14 @@ control NFDeparser(
 
     apply {
         pkt.emit(hdr.ethernet);
-        pkt.emit(hdr.evlan);
         pkt.emit(hdr.d6gmain);
-        pkt.emit(hdr.ipv4);
     }
 }
 
-V1Switch(NFParser(),
-         MyVerifyChecksum(),
-         NFIngress(),
-         NFEgress(),
-         MyComputeChecksum(),
-         NFDeparser()) main;
+V1Switch(
+        NFParser(),
+        MyVerifyChecksum(),
+        NFIngress(),
+        NFEgress(),
+        MyComputeChecksum(),
+        NFDeparser()) main;
