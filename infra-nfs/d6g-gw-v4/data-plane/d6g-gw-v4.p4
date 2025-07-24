@@ -150,7 +150,18 @@ control NFIngress(
         hdr.d6gmain.hhFlag = 1;
     }
 
+    table IsHH {
+        key={
+            ig_md.ueid: exact;
         }
+        actions = {
+            setHH;
+            NoAction;
+        }
+        size = 2000;
+        default_action = NoAction;
+    }
+
     action setUpstreamMode4() {
         ig_md.ueid = (bit<32>) hdr.ipv4.srcAddr;
         ig_md.direction = 0;
@@ -271,7 +282,15 @@ control NFIngress(
             if (!hdr.d6gmain.isValid() && hdr.ipv4.isValid()) {
                 ModeSelector.apply();
                 ServiceMapper.apply();
-                UEMapper.apply();
+                if (ig_md.direction == 1) {
+                    if (IsHH.apply().hit) {
+                        // TODO: HH handling
+                    } else {
+                        UEMapper.apply();
+                    }
+                } else {
+                    UEMapper.apply();
+                }
             }
 #ifdef   __TARGET_TOFINO__
             nfrouter.apply(hdr, ig_md, ig_dprsr_md, ig_tm_md);
