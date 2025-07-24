@@ -444,8 +444,10 @@ def parse_siteconfig(path):
       response = (f'{type(ex).__name__}: {ex.args}', 500)
       traceback.print_exc()
 
-def addue2smentries():
+def addue2smentries(nfrsrc, srcintf, graph_direction, srcnf, srcifindex, dstnf, dstifindex, g_index, graph_service_id, ueids, location_id):
   # TODO this should be done with external -> external?
+  nfrsrcport = getifindex(nfrsrc, srcintf)
+
   entry = {
       "table": "ModeSelector",
       "action": "setUpstreamMode4" if graph_direction == 'upstream' else "setDownstreamMode4",
@@ -454,7 +456,10 @@ def addue2smentries():
       }
   addcpentry(nfrsrc['entries'], entry)
 
-  relevantues = [srcnf['ip']] if graph_direction == 'upstream' and srcnf['is-ue'] else ueids
+  relevantues = [srcnf['ips'][srcifindex]] if graph_direction == 'upstream' and srcnf['is-ue'] else ueids
+  #relevantues = [srcnf['ips'][srcifindex]] if graph_direction == 'upstream' and srcnf['is-ue'] else [dstnf['ips'][dstifindex]]
+  #print(relevantues)
+  #print(dstnf['ips'][dstifindex])
   for ueid in relevantues:
     smentry = {
         "table": "ServiceMapper",
@@ -472,7 +477,7 @@ def addue2smentries():
         "table": "UEMapper",
         "action": "UEMapping",
         "keys": {"ueid": ueid},
-        "actionParameters": {"locationId": data['location-id']}
+        "actionParameters": {"locationId": location_id}
         }
     addcpentry(nfrsrc['entries'], uemapentry)
 
@@ -589,46 +594,7 @@ def generate_values(nsd, path):
         #if srcnf['domain'] == 'external' and dstnf['domain'] == 'internal':
         if srcnf['domain'] == 'external':
           changenfrtogw(nfrsrc)
-          # TODO refactor this into addue2smentries
-          #addue2smentries()
-          nfrsrcport = getifindex(nfrsrc, srcintf)
-
-          entry = {
-              "table": "ModeSelector",
-              "action": "setUpstreamMode4" if graph_direction == 'upstream' else "setDownstreamMode4",
-              "keys": {"ingress_port": nfrsrcport},
-              "actionParameters": {}
-              }
-          addcpentry(nfrsrc['entries'], entry)
-
-          relevantues = [srcnf['ips'][srcifindex]] if graph_direction == 'upstream' and srcnf['is-ue'] else [dstnf['ips'][dstifindex]]
-          for ueid in relevantues:
-            smentry = {
-                "table": "ServiceMapper",
-                "action": "setD6GService",
-                "keys": {
-                  "direction": 0 if graph_direction == 'upstream' else 1,
-                  "ueid": f"{ueid}/32"},
-                "actionParameters": {
-                  "serviceId": graph_service_id,
-                  "nextNF": dstnf['nfids'][g_index][dstifindex]
-                  }
-                }
-            addcpentry(nfrsrc['entries'], smentry)
-            uemapentry = {
-                "table": "UEMapper",
-                "action": "UEMapping",
-                "keys": {"ueid": ueid},
-                "actionParameters": {"locationId": data['location-id']}
-                }
-            addcpentry(nfrsrc['entries'], uemapentry)
-
-        if srcnf['domain'] == 'external':
-          # TODO refactor this into addroutetoinit
-          dstip = afids[0] if graph_direction == 'upstream' else ueids[0]
-          srcnf['env']['AF_IP'] = dstip
-          srcnf["initcmd"] += f"ip route add {nfrsrc['ip']}/32 dev {srcintf};ip route add {dstip}/32 via {nfrsrc['ip']} dev {srcintf};"
-          #addroutetoinit(srcnf, dstnf, dstintf, srcintf, nfrsrc['ip'])
+          addue2smentries(nfrsrc, srcintf, graph_direction, srcnf, srcifindex, dstnf, dstifindex, g_index, graph_service_id, ueids, data['location-id'])
           addroutetoinit(srcnf, dstnf, dstintf, srcintf, nfrsrc['ip'], afids if graph_direction == 'upstream' else ueids)
 
     for k, n in data['services'].items():
