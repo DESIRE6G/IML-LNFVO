@@ -497,6 +497,10 @@ def addGWentries(nfr):
       }
   addcpentry(nfr['entries'], entry)
 
+
+def addmemifmount(nf, srcid):
+  nf['hostpath'] = {'name': 'shared-dir', 'hostpath': f"/run/vpp/{srcid}", 'path': "/var/lib/cni/usrspcni"}
+
 def generate_values(nsd, path):
   global predeployed
   global nfrouter_mode
@@ -576,10 +580,10 @@ def generate_values(nsd, path):
 
         # TODO refactor into addnfr and addtonf or addif?
         if interpod_mode == 'memif':
-          srcnf['hostpath'] = {'name': 'shared-dir', 'hostpath': f"/run/vpp/{srcid}", 'path': "/var/lib/cni/usrspcni"}
-          dstnf['hostpath'] = {'name': 'shared-dir', 'hostpath': f"/run/vpp/{dstid}", 'path': "/var/lib/cni/usrspcni"}
-          nfrsrc['hostpath'] = {'name': 'shared-dir', 'hostpath': f"/run/vpp/nfr-{srcnf['node']}", 'path': "/var/lib/cni/usrspcni"}
-          nfrdst['hostpath'] = {'name': 'shared-dir', 'hostpath': f"/run/vpp/nfr-{dstnf['node']}", 'path': "/var/lib/cni/usrspcni"}
+          addmemifmount(srcnf, srcid)
+          addmemifmount(dstnf, srcid)
+          addmemifmount(nfrsrc, srcid)
+          addmemifmount(nfrdst, srcid)
 
         addtonf(nfrsrc, srcintf, srcintf)
         addtonf(nfrdst, dstintf, dstintf)
