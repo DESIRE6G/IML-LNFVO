@@ -109,7 +109,7 @@ def addiptoinit(dic, ip, intf, memifid=None, mac=None):
     if dic['domain'] == 'external':
       dic["initcmd"] += SingleQuotedScalarString(f"ip link set dev {intf} mtu 1450;")
 
-def addroutetoinit(srcnf, dstnf, dstintf, srcintf, d6g_gw):
+def addroutetoinit(srcnf, dstnf, dstintf, srcintf, d6g_gw, afids):
   s = next(i for i in srcnf['interfaces'] if i['interface'] == srcintf)
   d = next(i for i in dstnf['interfaces'] if i['interface'] == dstintf)
   if 'memifid' in s and nf_memif_setup:
@@ -117,11 +117,9 @@ def addroutetoinit(srcnf, dstnf, dstintf, srcintf, d6g_gw):
     srcnf["cmd"] += f"vppctl \"ip route add {d['ip']}/32 via memif{s['memifid']+1}/{s['memifid']}\";"
     srcnf["cmd"] = SingleQuotedScalarString(srcnf["cmd"])
   elif 'memifid' not in s:
-    if srcnf['domain'] == 'external':
-      srcnf['env']['AF_IP'] = d['ip']
-      srcnf["initcmd"] += f"ip route add {d6g_gw}/32 dev {srcintf};ip route add {d['ip']}/32 via {d6g_gw} dev {srcintf};"
-    #elif srcnf['domain'] == 'internal':
-    #  srcnf["initcmd"] += f"arp -i {srcintf} -s {d['ip']} {d['mac']};ip route add {d['ip']}/32 dev {srcintf};"
+    dstip = afids[0]
+    srcnf['env']['AF_IP'] = dstip
+    srcnf["initcmd"] += f"ip route add {d6g_gw}/32 dev {srcintf};ip route add {dstip}/32 via {d6g_gw} dev {srcintf};"
     srcnf["initcmd"] = SingleQuotedScalarString(srcnf["initcmd"])
 
 def addif(dic, name, type, ifindex=None):
@@ -629,6 +627,7 @@ def generate_values(nsd, path):
           srcnf['env']['AF_IP'] = dstip
           srcnf["initcmd"] += f"ip route add {nfrsrc['ip']}/32 dev {srcintf};ip route add {dstip}/32 via {nfrsrc['ip']} dev {srcintf};"
           #addroutetoinit(srcnf, dstnf, dstintf, srcintf, nfrsrc['ip'])
+          addroutetoinit(srcnf, dstnf, dstintf, srcintf, nfrsrc['ip'], afids if graph_direction == 'upstream' else ueids)
 
     for k, n in data['services'].items():
       #if n['name'] == f'nfrouter-{nfrouter_mode}':
