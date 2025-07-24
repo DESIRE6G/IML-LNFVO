@@ -150,24 +150,15 @@ control NFIngress(
         hdr.d6gmain.hhFlag = 1;
     }
 
-    action setUpstreamMode4() { //bit<9> port) {
-        if (hdr.arp_ipv4.isValid()) {
-	        ig_md.ueid = (bit<32>) hdr.arp_ipv4.spa;
-        } else {
-	        ig_md.ueid = (bit<32>) hdr.ipv4.srcAddr;
         }
+    action setUpstreamMode4() {
+        ig_md.ueid = (bit<32>) hdr.ipv4.srcAddr;
         ig_md.direction = 0;
-        //TXPORT = port;
     }
 
-    action setDownstreamMode4() { //bit<9> port) {
-        if (hdr.arp_ipv4.isValid()) {
-	        ig_md.ueid = (bit<32>) hdr.arp_ipv4.tpa;
-        } else {
-	        ig_md.ueid = (bit<32>) hdr.ipv4.dstAddr;
-        }
+    action setDownstreamMode4() {
+        ig_md.ueid = (bit<32>) hdr.ipv4.dstAddr;
         ig_md.direction = 1;
-        //TXPORT = port;
     }
 
     table ModeSelector {
@@ -270,15 +261,14 @@ control NFIngress(
     }
 
     apply {
-        bool hit = false;
         if (hdr.arp_ipv4.isValid()) {
-            hit = arp_responder_v4.apply().hit;
+            arp_responder_v4.apply();
         }
         else if (hdr.icmp.isValid()) {
-            hit = icmp_responder_v4.apply().hit;
+            icmp_responder_v4.apply()
         }
-        if (!hit) {
-            if (!hdr.d6gmain.isValid() && (hdr.arp_ipv4.isValid() || hdr.ipv4.isValid())) {
+        else {
+            if (!hdr.d6gmain.isValid() && hdr.ipv4.isValid()) {
                 ModeSelector.apply();
                 ServiceMapper.apply();
                 UEMapper.apply();
