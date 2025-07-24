@@ -129,7 +129,7 @@ control NFEgressDeparser(
 
 Pipeline(
         NFIngressParser(),
-        NFIngress(),
+        NFR(),
         NFIngressDeparser(),
         NFEgressParser(),
         NFEgress(),
