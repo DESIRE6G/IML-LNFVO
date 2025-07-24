@@ -42,16 +42,16 @@ lnsd:
         links:
           - id: "upstream-1"
             connection-points:
-            - if-id-ref: "pkt-src:1"
-            - if-id-ref: "reflector:1"
+            - if-id-ref: "pkt-src:0"
+            - if-id-ref: "reflector:0"
           - id: "upstream-2"
             connection-points:
-            - if-id-ref: "reflector:1"
-            - if-id-ref: "pkt-dst:1"
+            - if-id-ref: "reflector:0"
+            - if-id-ref: "pkt-dst:0"
       - graph-name: "downstream"
         direction: "downstream"
         links:
           - id: "downstream-1"
             connection-points:
-            - if-id-ref: "pkt-dst:1"
-            - if-id-ref: "pkt-src:1"
+            - if-id-ref: "pkt-dst:0"
+            - if-id-ref: "pkt-src:0"

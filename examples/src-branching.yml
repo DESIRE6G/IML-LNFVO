@@ -59,24 +59,24 @@ lnsd:
         links:
           - id: "upstream-1"
             connection-points:
-            - if-id-ref: "pkt-src:1"
-            - if-id-ref: "alternator:1"
+            - if-id-ref: "pkt-src:0"
+            - if-id-ref: "alternator:0"
           - id: "upstream-2"
             connection-points:
-            - if-id-ref: "alternator:1"
-            - if-id-ref: "pkt-dst1:1"
+            - if-id-ref: "alternator:0"
+            - if-id-ref: "pkt-dst1:0"
           - id: "upstream-3"
             connection-points:
-            - if-id-ref: "alternator:2"
-            - if-id-ref: "pkt-dst2:1"
+            - if-id-ref: "alternator:1"
+            - if-id-ref: "pkt-dst2:0"
       - graph-name: "downstream"
         direction: "downstream"
         links:
           - id: "downstream-1"
             connection-points:
-            - if-id-ref: "pkt-dst1:1"
-            - if-id-ref: "pkt-src:1"
+            - if-id-ref: "pkt-dst1:0"
+            - if-id-ref: "pkt-src:0"
           - id: "downstream-2"
             connection-points:
-            - if-id-ref: "pkt-dst2:1"
-            - if-id-ref: "pkt-src:1"
+            - if-id-ref: "pkt-dst2:0"
+            - if-id-ref: "pkt-src:0"

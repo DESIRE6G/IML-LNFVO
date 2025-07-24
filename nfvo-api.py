@@ -69,24 +69,22 @@ def generate_nfid():
   return next_nfid
 
 given_macs = []
-def generate_mac(next_mac=None):
+def generate_mac():
   global given_macs
-  if next_mac is None:
-    while True:
-      next_mac = "02:" + ":".join([f"{random.randint(0, 255):02x}" for x in range(5)])
-      if next_mac not in given_macs:
-        break
+  while True:
+    next_mac = "02:" + ":".join([f"{random.randint(0, 255):02x}" for x in range(5)])
+    if next_mac not in given_macs:
+      break
   given_macs.append(next_mac)
   return next_mac
 
 given_ips = []
-def generate_ip(next_ip=None):
+def generate_ip():
   global given_ips
-  if next_ip is None:
-    while True:
-      next_ip = "10." + ".".join([f"{random.randint(0, 255)}" for x in range(3)])
-      if next_ip not in given_ips:
-        break
+  while True:
+    next_ip = "10." + ".".join([f"{random.randint(0, 255)}" for x in range(3)])
+    if next_ip not in given_ips:
+      break
   given_ips.append(next_ip)
   return next_ip
 
@@ -418,7 +416,6 @@ def addnf(services, nf, domain, gs, name=None):
   s['name'] = nf['id'] if name is None else name
   s['node'] = nf['node']
   s['domain'] = domain
-  #s['macs'] = [generate_mac(nf.get('static-mac'))]
   s['nfids'] = []
   for _ in range(gs):
     s['nfids'].append({})
@@ -434,13 +431,18 @@ def addnf(services, nf, domain, gs, name=None):
   s['macs'] = {}
   if 'static-macs' in nf:
     for idx, val in enumerate(nf['static-macs']):
-      s['macs'][str(idx+1)] = val
   # ip for internal nf-s are not needed?
-  #s['ips'] = [generate_ip(nf.get('static-ip'))]
+      given_macs.append(val)
+      s['macs'][str(idx)] = val
+
   s['ips'] = {}
-  if 'static-ips' in nf:
-    for idx, val in enumerate(nf['static-ips']):
-      s['ips'][str(idx+1)] = val
+  if s['domain'] == 'external':
+    #s['ips'] = {}
+    if 'static-ips' in nf:
+      for idx, val in enumerate(nf['static-ips']):
+        given_ips.append(val)
+        s['ips'][str(idx)] = val
+
   s['interfaces'] = []
   s['is-ue'] = nf.get('is-ue', False)
   s['env'] = {}
