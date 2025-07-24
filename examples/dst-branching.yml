@@ -1,0 +1,102 @@
+lnsd:
+  ns-instance-id: "11223344-e2a8-4338-bc8c-be685548bad2"
+  ns:
+    name: "Simple single node"
+    id: "418420e3-e2a8-4338-bc8c-be685548bad2"
+    vendor: "D6G"
+    descriptor-version: "1.0"
+    site-id: "d6g-001"
+    location-id: 40
+    default-service-id: "30"
+    default-nfrouter-mode: "bmv2"
+    default-interpod-mode: 'br'
+
+    site-connections: []
+    infra-nfs:
+      - instance-id: "nfr-epyc1"
+        static-mac: "02:88:88:88:88:88"
+        static-ip: "11.23.23.23"
+
+    network-functions:
+      - instance-id: "reflector"
+        id: "reflector-bmv2"
+        name: "debug nf"
+        version: "1.0"
+        node: "epyc1"
+        static-nfids: [[23,43],[26,46]]
+        static-macs: ["02:66:66:66:66:66", "02:77:77:77:77:77"]
+
+    application-functions:
+      - instance-id: "pkt-src1"
+        id: "iperf3"
+        name: "Pkt source"
+        version: "1.0"
+        node: "epyc1"
+        domain: "external"
+        is-ue: true
+        static-nfids: [[32],[33]]
+        static-macs: ["02:99:99:99:99:99"]
+        static-ips: ["11.12.12.13"]
+
+      - instance-id: "pkt-src2"
+        id: "iperf3"
+        name: "Pkt source"
+        version: "1.0"
+        node: "epyc1"
+        domain: "external"
+        is-ue: true
+        static-nfids: [[21],[24]]
+        static-macs: ["02:55:55:55:55:55"]
+        static-ips: ["11.12.12.12"]
+
+      - instance-id: "pkt-dst1"
+        id: "iperf3"
+        name: "Pkt destination"
+        version: "1.0"
+        node: "epyc1"
+        domain: "external"
+        static-nfids: [[22],[25]]
+        static-macs: ["02:11:11:11:11:11"]
+        static-ips: ["12.69.69.53"]
+
+      - instance-id: "pkt-dst2"
+        id: "iperf3"
+        name: "Pkt destination"
+        version: "1.0"
+        node: "epyc1"
+        domain: "external"
+        static-nfids: [[30],[31]]
+        static-macs: ["02:22:22:22:22:22"]
+        static-ips: ["12.69.69.54"]
+
+    forwarding_graphs:
+      - graph-name: "upstream"
+        direction: "upstream"
+        links:
+          - id: "upstream-1"
+            connection-points:
+            - if-id-ref: "pkt-src1:0"
+            - if-id-ref: "reflector:0"
+          - id: "upstream-2"
+            connection-points:
+            - if-id-ref: "reflector:0"
+            - if-id-ref: "pkt-dst1:0"
+          - id: "upstream-3"
+            connection-points:
+            - if-id-ref: "pkt-src2:0"
+            - if-id-ref: "reflector:1"
+          - id: "upstream-4"
+            connection-points:
+            - if-id-ref: "reflector:1"
+            - if-id-ref: "pkt-dst2:0"
+      - graph-name: "downstream"
+        direction: "downstream"
+        links:
+          - id: "downstream-1"
+            connection-points:
+            - if-id-ref: "pkt-dst1:0"
+            - if-id-ref: "pkt-src1:0"
+          - id: "downstream-2"
+            connection-points:
+            - if-id-ref: "pkt-dst2:0"
+            - if-id-ref: "pkt-src2:0"
