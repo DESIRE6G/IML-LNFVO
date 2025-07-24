@@ -270,20 +270,8 @@ def changenfrtogw(nfr):
 
   if 'ip' not in nfr:
     nfr['ip'] = generate_ip()
-  entry = {
-      "table": "arp_responder_v4",
-      "action": "arp_reply",
-      "keys": {"hdr.arp.oper": 1, "hdr.arp_ipv4.tpa": nfr['ip']},
-      "actionParameters": {"my_mac": nfr['mac']}
-      }
-  addcpentry(nfr['entries'], entry)
-  entry = {
-      "table": "icmp_responder_v4",
-      "action": "icmp_reply",
-      "keys": {"hdr.ethernet.dstAddr": nfr['mac'], "hdr.ipv4.dstAddr": nfr['ip']},
-      "actionParameters": {}
-      }
-  addcpentry(nfr['entries'], entry)
+
+  addGWentries(nfr)
   infranf_name = 'd6g-gw-v4'
   result = run(['make', '-C', './infra-nfs', infranf_name], capture_output = True, text = True)
   nfr['files'] = [
@@ -488,7 +476,21 @@ def addue2smentries():
         }
     addcpentry(nfrsrc['entries'], uemapentry)
 
-# def addGWentries():
+def addGWentries(nfr):
+  entry = {
+      "table": "arp_responder_v4",
+      "action": "arp_reply",
+      "keys": {"hdr.arp.oper": 1, "hdr.arp_ipv4.tpa": nfr['ip']},
+      "actionParameters": {"my_mac": nfr['mac']}
+      }
+  addcpentry(nfr['entries'], entry)
+  entry = {
+      "table": "icmp_responder_v4",
+      "action": "icmp_reply",
+      "keys": {"hdr.ethernet.dstAddr": nfr['mac'], "hdr.ipv4.dstAddr": nfr['ip']},
+      "actionParameters": {}
+      }
+  addcpentry(nfr['entries'], entry)
 
 def generate_values(nsd, path):
   global predeployed
