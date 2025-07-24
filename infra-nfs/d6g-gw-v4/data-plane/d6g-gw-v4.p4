@@ -25,7 +25,7 @@
 
 struct ingress_metadata_t {
     bit<32> ueid;
-    bit<1>  direction;
+    bit<1>  direction; // 0-upstream, 1-downstream
 #ifdef __TARGET_TOFINO__
     bit<16> icmp_cs_tmp;
 #endif
@@ -44,6 +44,7 @@ struct header_t {
 }
 
 #include "../../nfrouter/data-plane/nfr-control.p4"
+#include "../../ue2servicemapper/data-plane/ue2sm-control.p4"
 
 parser NFIngressParser(
         packet_in pkt,
@@ -101,8 +102,8 @@ parser NFIngressParser(
 
     state parse_arp {
         pkt.extract(hdr.arp);
-        transition select(hdr.arp.htype, hdr.arp.ptype) { //, hdr.arp.hlen, hdr.arp.plen) {
-            (ARP_HTYPE_ETHERNET, ARP_PTYPE_IPV4) : parse_arp_ipv4; //, ARP_HLEN_ETHERNET,  ARP_PLEN_IPV4) : parse_arp_ipv4;
+        transition select(hdr.arp.htype, hdr.arp.ptype) {
+            (ARP_HTYPE_ETHERNET, ARP_PTYPE_IPV4) : parse_arp_ipv4;
             default : accept;
         }
     }
@@ -136,6 +137,7 @@ control NFIngress(
 ) {
 
     NFR() nfrouter;
+    UE2SM() ue2servicemapper;
 
     action drop() {
 #ifdef __TARGET_TOFINO__
@@ -146,87 +148,12 @@ control NFIngress(
         exit;
     }
 
-    action setHH() {
-        hdr.d6gmain.hhFlag = 1;
-    }
-
-    table IsHH {
-        key={
-            ig_md.ueid: exact;
-        }
-        actions = {
-            setHH;
-            NoAction;
-        }
-        size = 2000;
-        default_action = NoAction;
-    }
-
-    action setUpstreamMode4() {
-        ig_md.ueid = (bit<32>) hdr.ipv4.srcAddr;
-        ig_md.direction = 0;
-    }
-
-    action setDownstreamMode4() {
-        ig_md.ueid = (bit<32>) hdr.ipv4.dstAddr;
-        ig_md.direction = 1;
-    }
-
-    table ModeSelector {
-        key = {
-            RXPORT : exact;
-        }
-        actions = {
-            setDownstreamMode4;
-            setUpstreamMode4;
-            drop;
-        }
-        default_action = drop();
-    }
-
-    action setD6GService(bit<16> serviceId, bit<16> nextNF) {
-        hdr.d6gmain.setValid();
-        hdr.d6gmain.serviceId = serviceId;
-        hdr.d6gmain.nextNF = nextNF;
-        hdr.d6gmain.nextHeader = hdr.ethernet.etherType;
-        hdr.ethernet.etherType = ETHERTYPE_D6G;
-    }
-
-    table ServiceMapper {
-        key = {
-            ig_md.direction : exact;
-            ig_md.ueid      : lpm;
-        }
-        actions = {
-            setD6GService;
-            drop;
-        }
-        size = 256;
-        default_action = drop();
-    }
-
-    action UEMapping(bit<16> locationId) {
-        hdr.d6gmain.locationId = locationId;
-        hdr.d6gmain.hhFlag = 0;
-    }
-
-    table UEMapper {
-        key = {
-            ig_md.ueid: exact; // -> may be reduced by splitting the ip to UE id and using the service id together
-        }
-        actions = {
-            UEMapping;
-            drop;
-        }
-        size = 10000; // table size may be different for upstream and downstream cases - TODO
-        default_action = drop();
-    }
-
     action arp_reply(bit<48> my_mac) {
         hdr.ethernet.dstAddr = hdr.arp_ipv4.sha;
         hdr.ethernet.srcAddr = my_mac;
-        hdr.arp.oper     = ARP_OPER_REPLY;
+        hdr.arp.oper = ARP_OPER_REPLY;
         hdr.arp_ipv4.tha = hdr.arp_ipv4.sha;
+
         bit<32> tmp = hdr.arp_ipv4.tpa;
         hdr.arp_ipv4.tpa = hdr.arp_ipv4.spa;
         hdr.arp_ipv4.sha = my_mac;
@@ -275,26 +202,12 @@ control NFIngress(
         if (hdr.arp_ipv4.isValid()) {
             arp_responder_v4.apply();
         }
-        else if (hdr.icmp.isValid()) {
-            icmp_responder_v4.apply()
-        }
-        else {
-            if (!hdr.d6gmain.isValid() && hdr.ipv4.isValid()) {
-                ModeSelector.apply();
-                ServiceMapper.apply();
-                if (ig_md.direction == 1) {
-                    if (IsHH.apply().hit) {
-                        // TODO: HH handling
-                    } else {
-                        UEMapper.apply();
-                    }
-                } else {
-                    UEMapper.apply();
-                }
-            }
+        else if (!hdr.icmp.isValid() || !icmp_responder_v4.apply().hit) {
 #ifdef   __TARGET_TOFINO__
+            ue2servicemapper.apply(hdr, ig_md, ig_dprsr_md, ig_tm_md);
             nfrouter.apply(hdr, ig_md, ig_dprsr_md, ig_tm_md);
 #else
+            ue2servicemapper.apply(hdr, ig_md, standard_metadata);
             nfrouter.apply(hdr, ig_md, standard_metadata);
 #endif
         }
@@ -407,7 +320,6 @@ control MyComputeChecksum(inout header_t hdr, inout ingress_metadata_t ig_md) {
             hdr.icmp.checksum,
             HashAlgorithm.csum16);
 
-        //update IPv4 checksum TODO is this needed?
         update_checksum(
             hdr.ipv4.isValid(),
             {
