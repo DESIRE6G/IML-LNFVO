@@ -1,5 +1,58 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
+configMapGenerator:
+- name: alternator-config
+  files:
+  - ../../infra-nfs/alternator/data-plane/alternator.p4info.txtpb
+  - ../../infra-nfs/alternator/data-plane/alternator.json
+  - ../reflector-bmv2/entrypoint.sh
+
 resources:
-- alternator-bmv2.yml
+- ../simple-switch-bmv2
+
+patches:
+- target:
+    kind: Deployment
+  patch: |-
+    - op: replace
+      path: /metadata/name
+      value: alternator-bmv2
+- target:
+    kind: Deployment
+  patch: |-
+    - op: replace
+      path: /spec/template/spec/containers/0/name
+      value: alternator-bmv2
+- patch: |-
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: alternator-bmv2
+    spec:
+      selector:
+        matchLabels:
+          app: alternator-bmv2
+      template:
+        metadata:
+          labels:
+            app: alternator-bmv2
+        spec:
+          containers:
+          - name: alternator-bmv2
+            args: [ '/p4runtime-sh/venv/bin/python  /local-cp/local-cp.py /opt/nfconfig/alternator.p4info.txtpb /opt/nfconfig/alternator.json' ]
+            volumeMounts:
+              - name: nf-config
+                mountPath: /opt/nfconfig
+          initContainers:
+          - name: switch
+            #command: [ "/bin/bash", "-c", "--" ]
+            #args: [ "trap : TERM INT; sleep infinity & wait" ]
+            command: [ "/bin/bash", "/opt/nfconfig/entrypoint.sh", "alternator" ]
+            volumeMounts:
+              - name: nf-config
+                mountPath: /opt/nfconfig
+          volumes:
+          - name: nf-config
+            configMap:
+              name: alternator-config
