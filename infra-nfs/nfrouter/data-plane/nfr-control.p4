@@ -37,7 +37,7 @@ control NFR(
         key = {
             RXPORT : exact;
             hdr.d6gmain.serviceId : exact;
-            hdr.d6gmain.nextNF : exact;
+            hdr.d6gmain.nextNF : lpm;
         }
         actions = {
             NoAction; UpdateNF;

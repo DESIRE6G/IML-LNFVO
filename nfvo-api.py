@@ -148,14 +148,11 @@ def getifindex(nf, intf):
   x = next(i for i, dic in enumerate(nf['interfaces']) if dic['interface'] == intf)
   return x
 
-def addtonf(nf, name, intf, macs=None, ips=None, nfids=None, ifindex=None, g_index=None, memifid=None):
+def addtonf(nf, name, intf, macs=None, ips=None, ifindex=None, g_index=None, memifid=None):
   if 'interfaces' not in nf:
     nf['interfaces'] = []
   x = next((i for i in nf['interfaces'] if i['interface'] == intf), None)
   if x != None:
-    if nfids is not None:
-      if ifindex not in nfids[g_index]:
-        nfids[g_index][ifindex] = generate_nfid()
     return
 
   i = {}
@@ -172,10 +169,6 @@ def addtonf(nf, name, intf, macs=None, ips=None, nfids=None, ifindex=None, g_ind
       ips[ifindex] = generate_ip()
     i['ip'] = ips[ifindex]
     addiptoinit(nf, ips[ifindex], intf, memifid, macs[ifindex])
-  if nfids is not None:
-    if ifindex not in nfids[g_index]:
-      nfids[g_index][ifindex] = generate_nfid()
-    i['nfid'] = SingleQuotedScalarString(nfids[g_index][ifindex])
   nf['interfaces'].append(i)
 
 def addroutetonfr(infs, nfrsrc, nfrdst, srcnf, srcintfname, dstnf, dstintfname, serviceid, g_index, l_index, locationId):
@@ -208,9 +201,9 @@ def addroutetonfr(infs, nfrsrc, nfrdst, srcnf, srcintfname, dstnf, dstintfname, 
           "keys": {
             "ingress_port": nfrsrcport,
             "serviceId": serviceid,
-            "nextNF": srcnf['nfids'][g_index][srcport]
+            "nextNF": f"{srcnf['nfids'][g_index] << 8}/8"
             },
-          "actionParameters": {"nfid": dstnf['nfids'][g_index][dstport]}
+          "actionParameters": {"nfid": encodenfidport(dstnf['nfids'][g_index], int(dstport))}
           }
       addcpentry(nfrsrc['entries'], entry)
     if dstnf['domain'] == 'internal':
@@ -220,7 +213,7 @@ def addroutetonfr(infs, nfrsrc, nfrdst, srcnf, srcintfname, dstnf, dstintfname, 
           "keys": {
             "serviceId": serviceid,
             "locationId": locationId,
-            "nextNF": dstnf['nfids'][g_index][dstport]
+            "nextNF": encodenfidport(dstnf['nfids'][g_index], int(dstport))
             },
           "actionParameters": {
             "port": nfrdstport,
@@ -236,7 +229,7 @@ def addroutetonfr(infs, nfrsrc, nfrdst, srcnf, srcintfname, dstnf, dstintfname, 
           "keys": {
             "serviceId": serviceid,
             "locationId": locationId,
-            "nextNF": dstnf['nfids'][g_index][dstport]
+            "nextNF": encodenfidport(dstnf['nfids'][g_index], int(dstport))
             },
           "actionParameters": {
             "port": nfrdstport,
@@ -260,7 +253,7 @@ def addroutetonfr(infs, nfrsrc, nfrdst, srcnf, srcintfname, dstnf, dstintfname, 
           "keys": {
             "serviceId": serviceid,
             "locationId": locationId,
-            "nextNF": dstnf['nfids'][g_index][dstport]
+            "nextNF": encodenfidport(dstnf['nfids'][g_index], int(dstport))
             },
           "actionParameters": {
             "port": port,
@@ -412,26 +405,25 @@ def cleanintf(services):
       del services[s]
 
 def addnf(services, nf, domain, gs, name=None):
+def encodenfidport(nfid: int, port: int):
+  return (nfid << 8) + port
+
   s = {}
   s['name'] = nf['id'] if name is None else name
   s['node'] = nf['node']
   s['domain'] = domain
   s['nfids'] = []
-  for _ in range(gs):
-    s['nfids'].append({})
   if 'static-nfids' in nf:
-    for sg_idx, sg_val in enumerate(nf['static-nfids']):
-      sg = {}
-      for idx, val in enumerate(sg_val):
-        given_nfids.append(val)
-        sg[str(idx)] = val
-      #s['nfids'][str(sg_idx)] = sg
-      s['nfids'][sg_idx] = sg
+    for val in nf['static-nfids']:
+      given_nfids.append(val)
+      s['nfids'].append(val)
+  else:
+    for _ in range(gs):
+      s['nfids'].append(generate_nfid())
 
   s['macs'] = {}
   if 'static-macs' in nf:
     for idx, val in enumerate(nf['static-macs']):
-  # ip for internal nf-s are not needed?
       given_macs.append(val)
       s['macs'][str(idx)] = val
 
@@ -486,7 +478,7 @@ def addue2smentries():
           "ueid": f"{ueid}/32"},
         "actionParameters": {
           "serviceId": graph_service_id,
-          "nextNF": dstnf['nfids'][g_index][dstport]
+          "nextNF": encodenfidport(dstnf['nfids'][g_index], int(dstifindex))
           }
         }
     addcpentry(nfrsrc['entries'], smentry)
@@ -568,8 +560,8 @@ def generate_values(nsd, path):
         addif(data['interfaces'], dstid, interpod_mode, dstifindex)
         srcintf = f'{srcid}-{interpod_mode}-{srcifindex}'
         dstintf = f'{dstid}-{interpod_mode}-{dstifindex}'
-        addtonf(srcnf, srcintf, srcintf, srcnf['macs'], srcnf['ips'], srcnf['nfids'], srcifindex, g_index, getnextmemifid(srcid) if interpod_mode == 'memif' else None)
-        addtonf(dstnf, dstintf, dstintf, dstnf['macs'], dstnf['ips'], dstnf['nfids'], dstifindex, g_index, getnextmemifid(dstid) if interpod_mode == 'memif' else None)
+        addtonf(srcnf, srcintf, srcintf, srcnf['macs'], srcnf['ips'], srcifindex, g_index, getnextmemifid(srcid) if interpod_mode == 'memif' else None)
+        addtonf(dstnf, dstintf, dstintf, dstnf['macs'], dstnf['ips'], dstifindex, g_index, getnextmemifid(dstid) if interpod_mode == 'memif' else None)
 
         addnfr(data['services'], srcnf['node'], nsd['lnsd']['ns'].get('infra-nfs'))
         addnfr(data['services'], dstnf['node'], nsd['lnsd']['ns'].get('infra-nfs'))

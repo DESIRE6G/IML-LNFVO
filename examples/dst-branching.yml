@@ -23,7 +23,7 @@ lnsd:
         name: "debug nf"
         version: "1.0"
         node: "epyc1"
-        static-nfids: [[23,43],[26,46]]
+        static-nfids: [1,2]
         static-macs: ["02:66:66:66:66:66", "02:77:77:77:77:77"]
 
     application-functions:
@@ -34,7 +34,7 @@ lnsd:
         node: "epyc1"
         domain: "external"
         is-ue: true
-        static-nfids: [[32],[33]]
+        static-nfids: [3,4]
         static-macs: ["02:99:99:99:99:99"]
         static-ips: ["11.12.12.13"]
 
@@ -45,7 +45,7 @@ lnsd:
         node: "epyc1"
         domain: "external"
         is-ue: true
-        static-nfids: [[21],[24]]
+        static-nfids: [5,6]
         static-macs: ["02:55:55:55:55:55"]
         static-ips: ["11.12.12.12"]
 
@@ -55,7 +55,7 @@ lnsd:
         version: "1.0"
         node: "epyc1"
         domain: "external"
-        static-nfids: [[22],[25]]
+        static-nfids: [7,8]
         static-macs: ["02:11:11:11:11:11"]
         static-ips: ["12.69.69.53"]
 
@@ -65,7 +65,7 @@ lnsd:
         version: "1.0"
         node: "epyc1"
         domain: "external"
-        static-nfids: [[30],[31]]
+        static-nfids: [9,10]
         static-macs: ["02:22:22:22:22:22"]
         static-ips: ["12.69.69.54"]
 
