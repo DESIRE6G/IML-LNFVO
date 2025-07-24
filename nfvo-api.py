@@ -510,6 +510,35 @@ def addsite(sites, s):
   site['transport-node'] = s['transport-node']
   data['sites'][s['id']] = site
 
+def getueidsofgraph(links, graph_direction, services, afs):
+  ueids = []
+  afids = []
+  for l in links:
+    if graph_direction == 'upstream':
+      nfid, nfifidx = l['connection-points'][0]['if-id-ref'].split(':')
+      afid, afifidx = l['connection-points'][1]['if-id-ref'].split(':')
+    else:
+      afid, afifidx = l['connection-points'][0]['if-id-ref'].split(':')
+      nfid, nfifidx = l['connection-points'][1]['if-id-ref'].split(':')
+    nf = services[nfid]
+    af = services[afid]
+    # TODO handle s2s connections
+    if nf['is-ue']:
+      if nfifidx not in nf['ips']:
+        nf['ips'][nfifidx] = generate_ip()
+      ueids.append(nf['ips'][nfifidx])
+
+    anyaf = False
+    for i in afs:
+      if af['name'] == i['id']:
+        anyaf = True
+        break
+    if anyaf:
+      if afifidx not in af['ips']:
+        af['ips'][afifidx] = generate_ip()
+      afids.append(af['ips'][afifidx])
+  return ueids, afids
+
 def addmemifmount(nf, srcid):
   nf['hostpath'] = {'name': 'shared-dir', 'hostpath': f"/run/vpp/{srcid}", 'path': "/var/lib/cni/usrspcni"}
 
@@ -548,33 +577,7 @@ def generate_values(nsd, path):
       graph_direction = g['direction']
       graph_service_id = g.get('service-id', data['default-service-id'])
 
-      # TODO refactor with filter or something? (and make a function)
-      #ueids = getueidsofgraph(links, graph_direction)
-      ueids = []
-      afids = []
-      for l in g['links']:
-        if graph_direction == 'upstream':
-          nfid, nfifidx = l['connection-points'][0]['if-id-ref'].split(':')
-          afid, afifidx = l['connection-points'][1]['if-id-ref'].split(':')
-        else:
-          afid, afifidx = l['connection-points'][0]['if-id-ref'].split(':')
-          nfid, nfifidx = l['connection-points'][1]['if-id-ref'].split(':')
-        nf = data['services'][nfid]
-        af = data['services'][afid]
-        if nf['is-ue']:
-          if nfifidx not in nf['ips']:
-            nf['ips'][nfifidx] = generate_ip()
-          ueids.append(nf['ips'][nfifidx])
-
-        anyaf = False
-        for i in nsd['lnsd']['ns']['application-functions']:
-          if af['name'] == i['id']:
-            anyaf = True
-            break
-        if anyaf:
-          if afifidx not in af['ips']:
-            af['ips'][afifidx] = generate_ip()
-          afids.append(af['ips'][afifidx])
+      ueids, afids = getueidsofgraph(g['links'], graph_direction, data['services'], nsd['lnsd']['ns']['application-functions'])
 
       for l_index, l in enumerate(g['links']):
         interpod_mode = l.get("interpod-mode", data['default-interpod-mode'])
