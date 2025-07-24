@@ -6,6 +6,7 @@ configMapGenerator:
   files:
   - ../../infra-nfs/reflector/data-plane/reflector.p4info.txtpb
   - ../../infra-nfs/reflector/data-plane/reflector.json
+  - entrypoint.sh
 
 resources:
 - ../simple-switch-bmv2
@@ -45,8 +46,9 @@ patches:
                 mountPath: /opt/nfconfig
           initContainers:
           - name: switch
-            command: [ "/bin/bash", "-c", "--" ]
-            args: [ "PORTS=($(basename -a /sys/class/net/*br*)) simple_switch_grpc --log-console --device-id 1  -i 0@$(basename -a /sys/class/net/*br*) /opt/nfconfig/reflector.json -- --grpc-server-addr 0.0.0.0:50051" ]
+            #command: [ "/bin/bash", "-c", "--" ]
+            #args: [ "trap : TERM INT; sleep infinity & wait" ]
+            command: [ "/bin/bash", "/opt/nfconfig/entrypoint.sh", "reflector" ]
             volumeMounts:
               - name: nf-config
                 mountPath: /opt/nfconfig
