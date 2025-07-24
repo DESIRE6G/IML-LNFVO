@@ -390,13 +390,14 @@ def cleanintf(services):
     if services[s]['name'] == 'unmanaged':
       del services[s]
 
-def addnf(services, nf, domain, gs, name=None):
 def encodenfidport(nfid: int, port: int):
   return (nfid << 8) + port
 
+def addnf(services, nf, domain, gs, name=None, node=None, siteId=None):
   s = {}
   s['name'] = nf['id'] if name is None else name
-  s['node'] = nf['node']
+  s['node'] = nf['node'] if node is None else node
+  s['site'] = siteId
   s['domain'] = domain
   s['nfids'] = []
   if 'static-nfids' in nf:
@@ -498,6 +499,17 @@ def addGWentries(nfr):
   addcpentry(nfr['entries'], entry)
 
 
+def addsite(sites, s):
+  site = {}
+  site['srcmac'] = s['srcmac']
+  site['dstmac'] = s['dstmac']
+  site['srcip'] = s['srcip']
+  site['dstip'] = s['dstip']
+  site['nfr-mac'] = s['nfr-mac']
+  site['transport-type'] = s['transport-type']
+  site['transport-node'] = s['transport-node']
+  data['sites'][s['id']] = site
+
 def addmemifmount(nf, srcid):
   nf['hostpath'] = {'name': 'shared-dir', 'hostpath': f"/run/vpp/{srcid}", 'path': "/var/lib/cni/usrspcni"}
 
@@ -508,6 +520,7 @@ def generate_values(nsd, path):
     data = {}
     data['services'] = {}
     data['interfaces'] = {}
+    data['sites'] = {}
     data['location-id'] = nsd['lnsd']['ns']['location-id']
     data['default-service-id'] = nsd['lnsd']['ns']['default-service-id']
     data['default-nfr-mode'] = nsd['lnsd']['ns']['default-nfrouter-mode']
@@ -522,6 +535,13 @@ def generate_values(nsd, path):
 
     for i in predeployed['predeployed-afs']:
       addnf(data['services'], i, i['domain'], gs, 'unmanaged')
+
+    for s in nsd['lnsd']['ns']['site-connections']:
+      addsite(data['sites'], s)
+      for i in s['network-functions']:
+        addnf(data['services'], i, 'internal', gs, 'unmanaged', s['transport-node'], s['id'])
+      for i in s['application-functions']:
+        addnf(data['services'], i, i['domain'], gs, 'unmanaged', s['transport-node'], s['id'])
 
     for g_index, g in enumerate(nsd['lnsd']['ns']['forwarding_graphs']):
       nfrouter_mode = g.get('nfrouter-mode', data['default-nfr-mode'])
