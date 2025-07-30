@@ -315,7 +315,7 @@ control MyComputeChecksum(inout header_t hdr, inout ingress_metadata_t ig_md) {
               hdr.icmp.icmp_code,
               16w0,
               hdr.icmp.identifier,
-              hdr.icmp.sequence_number,
+              hdr.icmp.sequence_number
             },
             hdr.icmp.checksum,
             HashAlgorithm.csum16);
