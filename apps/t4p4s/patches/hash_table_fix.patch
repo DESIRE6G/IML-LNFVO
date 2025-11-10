@@ -1,0 +1,14 @@
+--- ./src/hardware_dep/dpdk/includes/dpdk_tables.h
++++ ./src/hardware_dep/dpdk/includes/dpdk_tables.h
+@@ -30,9 +30,9 @@ void rte_exit_with_errno(const char* table_type, const char* table_name);
+ // Table size limits
+
+ #ifdef RTE_ARCH_X86_64
+-    #define HASH_ENTRIES		1024
++    #define HASH_ENTRIES		16777216
+ #else
+-    #define HASH_ENTRIES		1024
++    #define HASH_ENTRIES		16777216
+ #endif
+
+ #define LPM4_NUMBER_TBL8S (1 << 8)

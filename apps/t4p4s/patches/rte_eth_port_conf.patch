@@ -1,0 +1,26 @@
+--- ./src/hardware_dep/dpdk/data_plane/dpdk_lib_init_hw.c
++++ ./src/hardware_dep/dpdk/data_plane/dpdk_lib_init_hw.c
+@@ -37,7 +37,13 @@
+     #endif
+ #endif
+
+-struct rte_eth_conf port_conf = {
++struct rte_eth_conf port_conf =
++{
++	.txmode = {
++		.mq_mode = RTE_ETH_MQ_TX_NONE,
++	},
++};
++/*{
+ #ifndef T4P4S_VETH_MODE
+     .rxmode = {
+ #if RTE_VERSION >= RTE_VERSION_NUM(22,03,0,0)
+@@ -85,7 +91,7 @@
+ #endif
+     },
+ #endif
+-};
++};*/
+
+ //=============================================================================
+
