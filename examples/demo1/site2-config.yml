@@ -1,0 +1,35 @@
+interfaces:
+  - id: site2-site1-0
+    type: tofino
+    port: 53
+
+  - id: t2-p42-br-0
+    type: tofino
+    port: 55
+
+nodes:
+  - id: "t2"
+    sriov-capable: false
+  - id: "p42"
+    sriov-capable: false
+
+predeployed-nfrs:
+  - instance-id: "nfr-t2"
+    node: "t2"
+    controlplane-ip: "10.30.7.53"
+    controlplane-port: "5556"
+    static-mac: "02:44:44:44:44:44"
+    int-enabled: true
+    int-collector: true
+    int-mirror-session: 100
+    interfaces: ["site2-site1-0", "t2-p42-br-0"]
+
+predeployed-tas:
+  - id: "site1"
+    transport-type: "internal"
+    transport-node: "t2"
+    transport-interface: "site2-site1-0"
+    nfr-mac: "02:33:44:55:66:77"
+
+predeployed-nfs: []
+predeployed-afs: []

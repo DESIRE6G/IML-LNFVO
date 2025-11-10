@@ -1,0 +1,38 @@
+lnsd:
+  ns-instance-id: "11223344"
+  ns:
+    name: "Demo1 scenario"
+    id: "aaaabbbb"
+    vendor: "D6G"
+    descriptor-version: "1.0"
+    site-id: "site1"
+    location-id: 40
+    default-service-id: "30"
+    default-nfrouter-mode: "bmv2"
+    default-interpod-mode: 'br'
+
+    infra-nfs: []
+    network-functions: []
+    application-functions: []
+    site-connections:
+      - id: "site2"
+        application-functions:
+          - instance-id: "app"
+            static-nfids: [44,45]
+        network-functions: []
+
+    forwarding_graphs:
+      - graph-name: "upstream"
+        direction: "upstream"
+        links:
+          - id: "upstream-1"
+            connection-points:
+            - if-id-ref: "ran:0"
+            - if-id-ref: "app:0"
+      - graph-name: "downstream"
+        direction: "downstream"
+        links:
+          - id: "downstream-1"
+            connection-points:
+            - if-id-ref: "app:0"
+            - if-id-ref: "ran:0"

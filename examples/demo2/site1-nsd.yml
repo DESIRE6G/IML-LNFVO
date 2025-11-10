@@ -1,0 +1,62 @@
+lnsd:
+  ns-instance-id: "11223344"
+  ns:
+    name: "Demo2 scenario"
+    id: "bbbbcccc"
+    vendor: "D6G"
+    descriptor-version: "1.0"
+    site-id: "site1"
+    location-id: 50
+    default-service-id: "20"
+    default-nfrouter-mode: "bmv2"
+    default-interpod-mode: 'br'
+
+    site-connections: []
+    infra-nfs: []
+
+    application-functions:
+      - instance-id: "app"
+        id: "iperf3"
+        name: "Pkt destination"
+        version: "1.0"
+        node: "xtreme"
+        domain: "external"
+        static-nfids: [33,43]
+        static-macs: ["02:22:33:44:55:99"]
+        static-ips: ["10.11.7.4"]
+        is-scalable: true
+        instances: 2
+        static-instance-ips: ["10.11.7.4", "10.11.7.6"]
+
+    network-functions:
+      - instance-id: "reflector"
+        id: "reflector-bmv2"
+        name: "reflector nf"
+        version: "1.0"
+        node: "xtreme"
+        static-nfids: [32,42]
+        static-macs: ["02:66:66:66:66:66"]
+
+    forwarding_graphs:
+      - graph-name: "upstream"
+        direction: "upstream"
+        links:
+          - id: "upstream-1"
+            connection-points:
+            - if-id-ref: "ran:0"
+            - if-id-ref: "reflector:0"
+          - id: "upstream-2"
+            connection-points:
+            - if-id-ref: "reflector:0"
+            - if-id-ref: "app:0"
+      - graph-name: "downstream"
+        direction: "downstream"
+        links:
+          - id: "downstream-1"
+            connection-points:
+            - if-id-ref: "app:0"
+            - if-id-ref: "reflector:0"
+          - id: "downstream-2"
+            connection-points:
+            - if-id-ref: "reflector:0"
+            - if-id-ref: "ran:0"

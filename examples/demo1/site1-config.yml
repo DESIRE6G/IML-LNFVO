@@ -1,0 +1,41 @@
+interfaces:
+  - id: ran-br-0
+    type: tofino
+    port: 39
+
+  - id: site1-site2-0
+    type: tofino
+    port: 50
+
+nodes:
+  - id: "t1"
+    sriov-capable: false
+
+predeployed-nfrs:
+  - instance-id: "nfr-t1"
+    node: "t1"
+    controlplane-ip: "10.30.7.53"
+    controlplane-port: "5555"
+    static-mac: "02:33:44:55:66:77"
+    int-enabled: true
+    interfaces: ["ran-br-0", "site1-site2-0"]
+
+predeployed-tas:
+iult out of range- id: "site2"
+    transport-type: "internal"
+    transport-node: "t1"
+    transport-interface: "site1-site2-0"
+    nfr-mac: "02:44:44:44:44:44"
+
+predeployed-nfs: []
+
+predeployed-afs:
+  - instance-id: "ran"
+    name: "ran"
+    version: "1.0"
+    node: "t1"
+    domain: "internal"
+    is-ue: true
+    static-nfids: [42, 43]
+    static-macs: ["02:22:33:44:55:66"]
+

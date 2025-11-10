@@ -1,0 +1,53 @@
+lnsd:
+  ns-instance-id: "55667788"
+  ns:
+    name: "Demo1 scenario"
+    id: "ccccdddd"
+    vendor: "D6G"
+    descriptor-version: "1.0"
+    site-id: "site2"
+    location-id: 40
+    default-service-id: "30"
+    default-nfrouter-mode: "bmv2"
+    default-interpod-mode: 'br'
+
+    infra-nfs: []
+    network-functions: []
+    site-connections:
+      - id: "site1"
+        application-functions:
+          - instance-id: "ran"
+            static-nfids: [42,43]
+            static-ips: ["10.10.10.44"]
+            is-ue: true
+        network-functions: []
+
+    application-functions:
+      - instance-id: "app"
+        id: "iperf3"
+        name: "Pkt destination"
+        version: "1.0"
+        node: "p42"
+        domain: "external"
+        static-nfids: [44,45]
+        static-macs: ["02:22:33:44:55:99"]
+        static-ips: ["10.30.7.213"]
+        is-scalable: true
+        instances: 2
+        static-instance-ips: ["10.30.7.213", "10.30.7.214"]
+
+    forwarding_graphs:
+      - graph-name: "upstream"
+        direction: "upstream"
+        links:
+          - id: "upstream-1"
+            connection-points:
+            - if-id-ref: "ran:0"
+            - if-id-ref: "app:0"
+      - graph-name: "downstream"
+        direction: "downstream"
+        links:
+          - id: "downstream-1"
+            connection-points:
+            - if-id-ref: "app:0"
+            - if-id-ref: "ran:0"
