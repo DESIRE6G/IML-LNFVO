@@ -191,7 +191,18 @@ def _make_key(table, match_key):
         field_name = full_key_name(table, field_name)
 
         if not isinstance(spec, dict):
-            key_tuples.append(gc.KeyTuple(field_name, _normalize_value(spec)))
+            if isinstance(spec, str) and "/" in spec:
+                prefix, length = spec.split('/')
+                prefix, length = int(prefix.strip()), int(length.strip())
+                key_tuples.append(gc.KeyTuple(field_name, _normalize_value(prefix),
+                                              prefix_len=length))
+            elif isinstance(spec, str) and "&&&" in spec:
+                value, mask = spec.split('&&&')
+                value, mask = value.strip(), mask.strip()
+                key_tuples.append(gc.KeyTuple(field_name, _normalize_value(value),
+                                              mask=_normalize_value(mask)))
+            else:
+                key_tuples.append(gc.KeyTuple(field_name, _normalize_value(spec)))
             continue
 
         if "prefix_len" in spec:
