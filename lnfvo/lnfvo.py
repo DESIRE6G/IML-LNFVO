@@ -604,7 +604,13 @@ def generate_values(nsd, path):
     yaml=YAML()
     yaml.width = 4096
     yaml.default_flow_style = False
+    #generate_end = time.time()
+    #print(f"time to generate values.yaml in mem: {generate_end - generate_start}")
+    #dump_start = time.time()
     yaml.dump(data, f)
+    #dump_end = time.time()
+    #print(f"time to dump values.yaml: {dump_end - dump_start}")
+    #print(data)
     return data
 
 def getNFCPstofill(data):

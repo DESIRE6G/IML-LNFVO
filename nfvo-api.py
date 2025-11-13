@@ -39,6 +39,7 @@ def deleteDeployment(id):
 
 @app.route("/iml/yaml/deploy", methods=["POST"])
 def deploy_yaml():
+  #deploy_start = time.time()
   path = os.path.join(app.config['UPLOAD_FOLDER'], "uploaded.yml")
   file = request.files['file']
   file.save(path)
@@ -53,6 +54,8 @@ def deploy_yaml():
       data = lnfvo.generate_values(yaml_data, values_path)
 
       result = run(['helm', 'install', '--namespace', DEFAULT_NAMESPACE, '--create-namespace', '--post-renderer', f'{DEFAULT_CHART}/post-render.sh', '-f', values_path, f'deploy-{deploy_id}', DEFAULT_CHART], capture_output = True, text = True)
+        #helm_start = time.time()
+        #helm_end = time.time()
 
       if result.stderr:
         response = (f"Failed to deploy: {result.stderr}", 500)
@@ -67,10 +70,16 @@ def deploy_yaml():
                             namespace='desire6g',
                             timeout_seconds=60):
         if event["object"].status.phase == "Running":
+        #cont_start = time.time()
             for s in need_cp[:]:
               if event['object'].metadata.name.startswith(s):
+                #cont_end = time.time()
+                #print(f"time to gw cont ready: {cont_end - cont_start}")
                 mgmt_ip = event['object'].status.pod_ip
+                #cp_start = time.time()
                 lnfvo.fillCPofNF(data, s, mgmt_ip)
+                #cp_end = time.time()
+                #print(f"time to fill cp: {cp_end - cp_start}")
                 need_cp.remove(s)
             if not need_cp:
               w.stop()
@@ -79,6 +88,8 @@ def deploy_yaml():
       response = (f'{type(ex).__name__}: {ex.args}', 500)
       traceback.print_exc()
 
+  #deploy_end = time.time()
+  #print(f"time to deploy as a whole: {deploy_end - deploy_start}")
   return jsonify({"response": response[0]}), response[1]
 
 if __name__ == "__main__":
