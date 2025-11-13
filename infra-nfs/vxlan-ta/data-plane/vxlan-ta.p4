@@ -207,7 +207,7 @@ control MyIngress(inout headers hdr,
         hdr.vxlan.setValid();
         hdr.vxlan.reserved = 0;
         hdr.vxlan.reserved2 = 0;
-        hdr.vxlan.flags = 0; // bit 5 needs to be 1?
+        hdr.vxlan.flags = 0b00001000;
         hdr.vxlan.vni = meta.vni;
     }
 
