@@ -135,8 +135,8 @@ def addtonf(nf, name, intf, macs=None, ips=None, ifindex=None, g_index=None, mem
     if ifindex not in ips:
       ips[ifindex] = generate_ip()
     i['ip'] = ips[ifindex]
-    addiptoinit(nf, ips[ifindex], intf, memifid, macs[ifindex])
-  nf['interfaces'].append(i)
+    if not nf.get('is-scalable', False):
+      addiptoinit(nf, ips[ifindex], intf, i['memifid'] if interpod_mode == 'memif' else None, macs[ifindex])
 
 def addroutetonfr(infs, nfrsrc, nfrdst, srcnf, srcintfname, dstnf, dstintfname, serviceid, g_index, l_index, locationId):
   nfrdstport = getifindex(nfrdst, dstintfname)
@@ -394,6 +394,19 @@ def addnf(services, nf, domain, gs, name=None, node=None, siteId=None):
   s['interfaces'] = []
   s['is-ue'] = nf.get('is-ue', False)
   s['env'] = {}
+  s['is-scalable'] = nf.get('is-scalable', False)
+  if 'parent-instance' in nf:
+    s['parent-instance'] = nf['parent-instance']
+  if s['is-scalable']:
+    s['instances'] = nf['instances']
+    s['static-instance-ips'] = nf['static-instance-ips']
+    s['static-instance-nodes'] = nf['static-instance-nodes']
+    s['current-instance'] = 0
+    for i in range(s['instances']):
+      addnf(services, {'id': nf['id'], 'instance-id': f"{i}--{nf['instance-id']}", 'parent-instance': nf['instance-id'] }, s['domain'], gs, node=s['static-instance-nodes'][i])
+    # TODO set pod ip?
+    setinfranf(s, 'af-selector', 'bmv2')
+
   services[nf['instance-id']] = s
 
 predeployed = {}
@@ -414,6 +427,66 @@ def parse_siteconfig(path):
       response = (f'{type(ex).__name__}: {ex.args}', 500)
       traceback.print_exc()
 
+def addlb_uplink_entry(lbnf):
+  uplink_port = 0
+  entry = {
+    "table": "Forwarder",
+    "keys": {"instId": 0},
+    "action": "forwardToUplink",
+    "actionParameters": {"port": uplink_port, "nfIp": lbnf['ips']['0']}
+  }
+  addcpentry(lbnf['entries'], entry)
+
+def addlb_instance_entry(nfid, lbnf, instIps, instId):
+  instIp = instIps[instId]
+  instPort = getifindex(lbnf, f'{nfid}-{instId}-br-0') + 1
+  entry = {
+    "table": "Forwarder",
+    "keys": {"instId": instId + 1},
+    "action": "forwardToInstance",
+    "actionParameters": {"port": instPort, "instIp": instIp}
+  }
+  addcpentry(lbnf['entries'], entry)
+
+def store_mgmtaddr(nfid, mgmt_ip):
+  global data
+  data['services'][nfid]["mgmt_ip"] = mgmt_ip
+
+def set_scalable_instance(serviceId, jobId):
+  global data
+
+  try:
+    inst = next(s for s in data['services'] if 'job-id' in data['services'][s] and data['services'][s]['job-id'] == jobId)
+  except Exception as ex:
+    raise Exception(f"Scale error: No NF with job id: {jobId}")
+
+  parentNFId = data['services'][inst]['parent-instance']
+  parentNF = data['services'][parentNFId]
+  parentNF['current-instance'] = (parentNF['current-instance'] + 1) % parentNF['instances']
+
+  entry = {
+    "table": "InstanceSelector",
+    "keys": {"dstAddr": parentNF['ips']['0']},
+    "action": "setInstance",
+    "actionParameters": {"instId": parentNF['current-instance']+1}
+  }
+  mgmt_ip = parentNF['mgmt_ip']
+  mgmt_port = 5000
+
+  url = f'http://{mgmt_ip}:{mgmt_port}/api/tables/'
+  x = requests.post(url, json = entry)
+  if x.status_code != 200:
+    raise Exception(f"Controlplane error: {x.json()}")
+  return(f"Current instance changed to: {parentNF['current-instance']}")
+
+def set_active_instance(lbnf, instId):
+  entry = {
+    "table": "InstanceSelector",
+    "keys": {"dstAddr": lbnf['ips']['0']},
+    "action": "setInstance",
+    "actionParameters": {"instId": instId+1}
+  }
+  addcpentry(lbnf['entries'], entry)
 def addue2smentries(nfrsrc, srcintf, graph_direction, srcnf, srcifindex, dstnf, dstifindex, g_index, graph_service_id, ueids, location_id):
   # TODO this should be done with external -> external?
   nfrsrcport = getifindex(nfrsrc, srcintf)
@@ -533,6 +606,12 @@ def generate_values(nsd, path):
 
     for i in nsd['lnsd']['ns']['application-functions']:
       addnf(data['services'], i, i['domain'], gs)
+      if data['services'][i['instance-id']].get('is-scalable', False):
+        for j in range(data['services'][i['instance-id']]['instances']):
+          addif(data['interfaces'], f"{i['instance-id']}-{j}", 'br', 0)
+          addtonf(data['services'][i['instance-id']], f"{i['instance-id']}-{j}-br-0", f"{i['instance-id']}-{j}-br-0")
+          addlb_instance_entry(i['instance-id'], data['services'][i['instance-id']], data['services'][i['instance-id']]['static-instance-ips'], j)
+        set_active_instance(data['services'][i['instance-id']], 0)
 
     for i in predeployed['predeployed-afs']:
       addnf(data['services'], i, i['domain'], gs, 'unmanaged')
@@ -604,11 +683,36 @@ def generate_values(nsd, path):
         n['cmd'] += 'sleep infinity;'
 
     cleanintf(data['services'])
+    if 'monitoring-ip' in predeployed:
+      data['monitoring-ip'] = predeployed['monitoring-ip']
+      data['monitoring-port'] = predeployed['monitoring-port']
+
     yaml=YAML()
     yaml.width = 4096
     yaml.default_flow_style = False
     yaml.dump(data, f)
     return data
+
+def getScalablesCurrentInstances(data):
+  currInsts = []
+  for s in data['services']:
+    if 'parent-instance' in data['services'][s]:
+      instId = s.split('--')[0]
+      if int(data['services'][data['services'][s]['parent-instance']]['current-instance']) == int(instId):
+        currInsts.append(s)
+  return currInsts
+
+def startMonitoring(data, nf, ns, podName):
+  url = f"http://{data['monitoring-ip']}:{data['monitoring-port']}/Forecasting/activateJob/{data['default-service-id']}/{ns}/{podName}"
+  print(url)
+  try:
+    reply = requests.put(url)
+  except:
+    raise Exception(f"Monitoring error: cant reach server")
+  print('reply:', x.json())
+  if x.status_code != 200:
+    raise Exception(f"Monitoring error: {x.json()}")
+  data['services'][nf]['job-id'] = x
 
 def getNFCPstofill(data):
   need_cp = []

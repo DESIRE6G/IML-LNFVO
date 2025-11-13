@@ -37,6 +37,19 @@ def deleteDeployment(id):
   else:
     return jsonify({"response": f"Succesfull deletion of the deployment with id: {id}"}), 200
 
+@app.route("/iml/scale/<service_id>/<job_id>", methods=["POST"])
+def set_scalable_instance(service_id, job_id):
+
+  try:
+    reply = lnfvo.set_scalable_instance(service_id, job_id)
+
+    response = (f"reply: {reply}", 200)
+  except Exception as ex:
+    response = (f'{type(ex).__name__}: {ex.args}', 500)
+    traceback.print_exc()
+
+  return jsonify({"response": response[0]}), response[1]
+
 @app.route("/iml/yaml/deploy", methods=["POST"])
 def deploy_yaml():
   path = os.path.join(app.config['UPLOAD_FOLDER'], "uploaded.yml")
@@ -62,13 +75,12 @@ def deploy_yaml():
           response = (f"Deployed: {yaml_data['lnsd']['ns']['name']} as id {deploy_id}", 200)
 
       need_cp = lnfvo.getNFCPstofill(data)
-      #for s in [x for x in need_cp if data['services'][x]['predeployed']]:
+      currInsts = lnfvo.getScalablesCurrentInstances(data)
+
       for s in data['unamanged']:
         lnfvo.fillCPofNF(data, s, data['services'][s]['controlplane-ip'], data['services'][s]['controlplane-port'])
-        #need_cp.remove(s)
-      #need_cp_managed = [x for x in need_cp if not data['services'][x]['predeployed']]
 
-      #if need_cp_managed:
+      if need_cp or currInsts:
         config.load_kube_config()
         core_v1 = client.CoreV1Api()
         w = watch.Watch()
@@ -77,10 +89,15 @@ def deploy_yaml():
                               namespace=DEFAULT_NAMESPACE,
                               timeout_seconds=60):
           if event["object"].status.phase == "Running":
+            for s in currInsts[:]:
+              if event['object'].metadata.name.startswith(s):
+                lnfvo.startMonitoring(data, s, event['object'].metadata.name, DEFAULT_NAMESPACE)
             for s in need_cp[:]:
               if event['object'].metadata.name.startswith(s):
                 mgmt_ip = event['object'].status.pod_ip
+                lnfvo.store_mgmtaddr(s, mgmt_ip)
                 lnfvo.fillCPofNF(data, s, mgmt_ip)
+
                 need_cp.remove(s)
               if not need_cp:
                 w.stop()
