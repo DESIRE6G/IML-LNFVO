@@ -52,28 +52,40 @@ def deploy_yaml():
       values_path = os.path.join(DEPLOY_FOLDER, f'values-{deploy_id}.yaml')
       data = lnfvo.generate_values(yaml_data, values_path)
 
-      result = run(['helm', 'install', '--namespace', DEFAULT_NAMESPACE, '--create-namespace', '--post-renderer', f'{DEFAULT_CHART}/post-render.sh', '-f', values_path, f'deploy-{deploy_id}', DEFAULT_CHART], capture_output = True, text = True)
+      if any([not data['services'][s]['predeployed'] for s in data['services']]):
+        result = run(['helm', 'install', '--namespace', DEFAULT_NAMESPACE, '--create-namespace', '--post-renderer', f'{DEFAULT_CHART}/post-render.sh', '-f', values_path, f'deploy-{deploy_id}', DEFAULT_CHART], capture_output = True, text = True)
 
-      if result.stderr:
-        response = (f"Failed to deploy: {result.stderr}", 500)
-        return jsonify({"response": response[0]}), response[1]
-      else:
-        response = (f"Deployed: {yaml_data['lnsd']['ns']['name']} as id {deploy_id}", 200)
+        if result.stderr:
+          response = (f"Failed to deploy: {result.stderr}", 500)
+          return jsonify({"response": response[0]}), response[1]
+        else:
+          response = (f"Deployed: {yaml_data['lnsd']['ns']['name']} as id {deploy_id}", 200)
 
       need_cp = lnfvo.getNFCPstofill(data)
+      #for s in [x for x in need_cp if data['services'][x]['predeployed']]:
+      for s in data['unamanged']:
+        lnfvo.fillCPofNF(data, s, data['services'][s]['controlplane-ip'], data['services'][s]['controlplane-port'])
+        #need_cp.remove(s)
+      #need_cp_managed = [x for x in need_cp if not data['services'][x]['predeployed']]
 
-      w = watch.Watch()
-      for event in w.stream(func=core_v1.list_namespaced_pod,
-                            namespace='desire6g',
-                            timeout_seconds=60):
-        if event["object"].status.phase == "Running":
+      #if need_cp_managed:
+        config.load_kube_config()
+        core_v1 = client.CoreV1Api()
+        w = watch.Watch()
+        time.sleep(0.5)
+        for event in w.stream(func=core_v1.list_namespaced_pod,
+                              namespace=DEFAULT_NAMESPACE,
+                              timeout_seconds=60):
+          if event["object"].status.phase == "Running":
             for s in need_cp[:]:
               if event['object'].metadata.name.startswith(s):
                 mgmt_ip = event['object'].status.pod_ip
                 lnfvo.fillCPofNF(data, s, mgmt_ip)
                 need_cp.remove(s)
-            if not need_cp:
-              w.stop()
+              if not need_cp:
+                w.stop()
+
+      response = (f"Deployed: {yaml_data['lnsd']['ns']['name']} as id {deploy_id}", 200)
 
     except Exception as ex:
       response = (f'{type(ex).__name__}: {ex.args}', 500)
