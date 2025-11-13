@@ -7,6 +7,7 @@ typedef bit<9>  egressSpec_t;
 typedef bit<48> macAddr_t;
 typedef bit<32> ip4Addr_t;
 
+
 header ethernet_t {
     bit<48>   dstAddr;
     bit<48>   srcAddr;
@@ -88,11 +89,17 @@ header udp_t {
     bit<16> checksum;
 }
 
+
 #define ETHERTYPE_VLAN 16w0x8100 // IEEE 802.1Q
 #define ETHERTYPE_IPV4 16w0x0800
 #define ETHERTYPE_IPV6 16w0x86DD
 #define ETHERTYPE_D6G  16w0xD6D6
 #define ETHERTYPE_ARP  16w0x0806
+
+
+const bit<16> ETHERTYPE_TPID   = 0x8100;
+const bit<16> ETHERTYPE_TO_CPU = 0xBF01;
+const bit<16> ETHERTYPE_D6GINT = 0xDF01;
 
 const bit<16> ARP_HTYPE_ETHERNET = 0x0001;
 const bit<16> ARP_PTYPE_IPV4     = 0x0800;
@@ -118,6 +125,7 @@ const bit<16> UDP_PORT_VXLAN = 4789;
 #define UDP_HDR_SIZE 8
 #define VXLAN_HDR_SIZE 8
 
+
 // DESIRE6G HEADER AND ITS OPTIONS
 
 header d6gmain_t {
@@ -135,6 +143,13 @@ header d6gqos_t {
    bit<16> packetValue;
    bit<8>  delayClass;
    bit<16> nextHeader;
+}
+
+header d6gint_t {
+    bit<16> next_header;
+    bit<48> t1;
+    bit<48> t2;
+    bit<48> t3;
 }
 
 // #define D6GOPTION_INTv1 16w0x1101

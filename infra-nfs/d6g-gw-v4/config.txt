@@ -1,0 +1,39 @@
+ucli
+pm
+
+show
+
+port-add 49/- 40G NONE
+port-add 51/- 40G NONE
+port-add 53/- 40G NONE
+port-add 55/- 40G NONE
+port-add 56/- 40G NONE
+
+port-enb 49/-
+port-enb 51/-
+port-enb 53/-
+port-enb 55/-
+port-enb 56/-
+
+show
+..
+exit
+bfrt_python
+bfrt
+
+mirror.cfg.add_with_normal(sid=100, direction='BOTH', session_enable=True, ucast_egress_port=16, ucast_egress_port_valid=1, max_pkt_len=43)
+mirror.cfg.dump
+
+d6ggwv4int.pipe.NFIngress.tb_d6gint_handler_sw1.add_with_do_d6gint_update_t2(serviceId=0, serviceId_mask=0, nextNF=10, port=188)
+d6ggwv4int.pipe.NFIngress.tb_d6gint_handler_sw1.add_with_do_d6gint_update_t2(serviceId=0, serviceId_mask=0, nextNF=20, port=32)
+
+d6ggwv4int.pipe.pipe.NFIngress.tb_d6gint_handler_sw2.add_with_do_d6gint_update_t3_and_send_report(serviceId=0, serviceId_mask=0, nextNF=21, port=156, mirror_session=100)
+d6ggwv4int.pipe.NFIngress.tb_d6gint_handler_sw2.add_with_do_d6gint_update_t3_and_send_report(serviceId=0, serviceId_mask=0, nextNF=11, port=8, mirror_session=100)
+
+d6ggwv4int.pipe.NFIngress.nfrouter_sw1.NFRouter.add_with_NFForwardMAC(serviceId=0, locationId=0, nextNF=10, port=8, srcMAC=00:00:00:11:11:11, dstMAC=00:00:00:22:22:22)
+d6ggwv4int.pipe.NFIngress.nfrouter_sw1.NFRouter.add_with_NFForwardMAC(serviceId=0, locationId=0, nextNF=11, port=5, srcMAC=00:00:00:11:11:11, dstMAC=00:00:00:33:33:33)
+
+d6ggwv4int.pipe.NFIngress.nfrouter_sw2.NFRouter.add_with_NFForwardToExternal(serviceId=0, locationId=0, nextNF=10, port=8, srcMAC=00:00:00:22:22:22, dstMAC=00:00:00:33:33:33)
+d6ggwv4int.pipe.NFIngress.nfrouter_sw2.NFRouter.add_with_NFForwardMAC(serviceId=0, locationId=0, nextNF=11, port=5, srcMAC=00:00:00:22:22:22, dstMAC=00:00:00:11:11:11)
+
+

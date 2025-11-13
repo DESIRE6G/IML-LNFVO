@@ -2,6 +2,7 @@ control NFR(
         inout header_t hdr,
         inout ingress_metadata_t ig_md,
 #ifdef __TARGET_TOFINO__
+        in ingress_intrinsic_metadata_t ig_intr_md,
         inout ingress_intrinsic_metadata_for_deparser_t ig_dprsr_md,
         inout ingress_intrinsic_metadata_for_tm_t ig_tm_md
 #else
@@ -15,7 +16,7 @@ control NFR(
 #else
         mark_to_drop(standard_metadata);
 #endif
-        exit;
+        //exit;
     }
 
     table NFPortClassifier {
