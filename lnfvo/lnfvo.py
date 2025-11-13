@@ -80,15 +80,15 @@ def addiptoinit(dic, ip, intf, memifid=None, mac=None):
 
 def addroutetoinit(srcnf, dstnf, dstintf, srcintf, d6g_gw, afids):
   s = next(i for i in srcnf['interfaces'] if i['interface'] == srcintf)
-  d = next(i for i in dstnf['interfaces'] if i['interface'] == dstintf)
   if 'memifid' in s and nf_memif_setup:
+    d = next(i for i in dstnf['interfaces'] if i['interface'] == dstintf)
     srcnf["cmd"] += f"vppctl \"set ip neighbor memif{s['memifid']+1}/{s['memifid']} {d['ip']} {d['mac']}\";"
     srcnf["cmd"] += f"vppctl \"ip route add {d['ip']}/32 via memif{s['memifid']+1}/{s['memifid']}\";"
     srcnf["cmd"] = SingleQuotedScalarString(srcnf["cmd"])
   elif 'memifid' not in s:
-    dstip = afids[0]
-    srcnf['env']['AF_IP'] = dstip
-    srcnf["initcmd"] += f"ip route add {d6g_gw}/32 dev {srcintf};ip route add {dstip}/32 via {d6g_gw} dev {srcintf};"
+    for i, af in enumerate(afids):
+      srcnf['env'][f'AF_IP_{i}'] = af
+    srcnf["initcmd"] += f"ip route add {d6g_gw}/32 dev {srcintf};ip route replace default via {d6g_gw} dev {srcintf};"
     srcnf["initcmd"] = SingleQuotedScalarString(srcnf["initcmd"])
 
 def addif(dic, name, type, ifindex=None):
@@ -427,9 +427,6 @@ def addue2smentries(nfrsrc, srcintf, graph_direction, srcnf, srcifindex, dstnf, 
   addcpentry(nfrsrc['entries'], entry)
 
   relevantues = [srcnf['ips'][srcifindex]] if graph_direction == 'upstream' and srcnf['is-ue'] else ueids
-  #relevantues = [srcnf['ips'][srcifindex]] if graph_direction == 'upstream' and srcnf['is-ue'] else [dstnf['ips'][dstifindex]]
-  #print(relevantues)
-  #print(dstnf['ips'][dstifindex])
   for ueid in relevantues:
     smentry = {
         "table": "ServiceMapper",
@@ -479,33 +476,39 @@ def addsite(sites, s):
   site['transport-node'] = s['transport-node']
   data['sites'][s['id']] = site
 
-def getueidsofgraph(links, graph_direction, services, afs):
+def getueidsofgraph(links, graph_direction, services, afs, sites):
+  # AF IPS are not neccessary treat it as a debug feature
   ueids = []
   afids = []
+
+  for s in sites:
+    for nf in s['network-functions']:
+      if 'afip' in nf:
+        afids.append(nf['afip'])
+
   for l in links:
     if graph_direction == 'upstream':
-      nfid, nfifidx = l['connection-points'][0]['if-id-ref'].split(':')
-      afid, afifidx = l['connection-points'][1]['if-id-ref'].split(':')
+      srcid, srcifidx = l['connection-points'][0]['if-id-ref'].split(':')
+      dstid, dstifidx = l['connection-points'][1]['if-id-ref'].split(':')
     else:
-      afid, afifidx = l['connection-points'][0]['if-id-ref'].split(':')
-      nfid, nfifidx = l['connection-points'][1]['if-id-ref'].split(':')
-    nf = services[nfid]
-    af = services[afid]
-    # TODO handle s2s connections
-    if nf['is-ue']:
-      if nfifidx not in nf['ips']:
-        nf['ips'][nfifidx] = generate_ip()
-      ueids.append(nf['ips'][nfifidx])
+      dstid, dstifidx = l['connection-points'][0]['if-id-ref'].split(':')
+      srcid, srcifidx = l['connection-points'][1]['if-id-ref'].split(':')
+    ue_candidate = services[srcid]
+    af_candidate = services[dstid]
+    if ue_candidate['is-ue']:
+      if srcifidx not in ue_candidate['ips']:
+        ue_candidate['ips'][srcifidx] = generate_ip()
+      ueids.append(ue_candidate['ips'][srcifidx])
 
     anyaf = False
     for i in afs:
-      if af['name'] == i['id']:
+      if af_candidate['name'] == i['id']:
         anyaf = True
         break
     if anyaf:
-      if afifidx not in af['ips']:
-        af['ips'][afifidx] = generate_ip()
-      afids.append(af['ips'][afifidx])
+      if dstifidx not in af_candidate['ips']:
+        af_candidate['ips'][dstifidx] = generate_ip()
+      afids.append(af_candidate['ips'][dstifidx])
   return ueids, afids
 
 def addmemifmount(nf, srcid):
