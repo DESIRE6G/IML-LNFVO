@@ -66,6 +66,7 @@ control UE2SM(
 
     table ServiceMapper {
         key = {
+            RXPORT : exact;
             ig_md.direction : exact;
             ig_md.ueid      : lpm;
         }
