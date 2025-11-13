@@ -47,6 +47,10 @@ control NFR(
         default_action = NoAction();
     }
 
+    action NFForward(bit<9> port) {
+        TXPORT = port;
+    }
+
     action NFForwardMAC(bit<9> port, bit<48> srcMAC, bit<48> dstMAC) {
         TXPORT = port;
         hdr.ethernet.srcAddr = srcMAC;
@@ -68,7 +72,7 @@ control NFR(
             hdr.d6gmain.nextNF       : exact;
         }
         actions = {
-            NFForwardMAC;NFForwardToExternal;drop;
+            NFForwardMAC;NFForwardToExternal;NFForward;drop;
         }
         size = 10000;
         default_action = drop();

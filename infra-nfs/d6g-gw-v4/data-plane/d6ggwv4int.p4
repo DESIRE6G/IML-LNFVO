@@ -36,7 +36,7 @@ const bit<16> ETHERTYPE_D6GMAIN = 0xD6D6;
 typedef bit<16> P_PortId_t;
 typedef bit<16> P_MirrorId_t;
 typedef bit<8>  P_QueueId_t;
- 
+
 #if __TARGET_TOFINO__ == 1
 typedef bit<7> PortId_Pad_t;
 typedef bit<6> MirrorId_Pad_t;
@@ -66,6 +66,15 @@ const header_type_t HEADER_TYPE_RESUBMIT       = 0xA;
 #define INTERNAL_HEADER         \
     header_type_t header_type;  \
     header_info_t header_info
+
+
+header clock_sync_h {
+    bit<8> count;
+    D6G_Timestamp_t t0;
+    D6G_Timestamp_t t1;
+    D6G_Timestamp_t t2;
+    D6G_Timestamp_t t3;
+}
 
 header inthdr_h {
     INTERNAL_HEADER;
@@ -127,23 +136,25 @@ struct ingress_metadata_t {
     MirrorId_t     mirror_session;
 #endif
     D6G_Timestamp_t        t3;
+    bit<8>                 tstamp_slot;
 }
 
 
 struct header_t {
-//    bridge_h bridge;
-    ethernet_t ethernet;
-    d6gmain_t d6gmain;
-    d6gint_t           d6gint;
-    ipv4_t ipv4;
-    icmp_t icmp;
-    arp_generic_h arp;
-    arp_ipv4_h arp_ipv4;
+//  bridge_h            bridge;
+    ethernet_t          ethernet;
+    clock_sync_h        clock_sync;
+    d6gmain_t           d6gmain;
+    d6gint_t            d6gint;
+    ipv4_t              ipv4;
+    icmp_t              icmp;
+    arp_generic_h       arp;
+    arp_ipv4_h          arp_ipv4;
 }
 
 #include "../../nfrouter/data-plane/nfr-control.p4"
 #include "../../ue2servicemapper/data-plane/ue2sm-control.p4"
-
+#include "./clock_sync.p4"
 
 parser NFIngressParser(
         packet_in pkt,
@@ -175,23 +186,32 @@ parser NFIngressParser(
         ig_md.mirror_header_type = 0;
         ig_md.mirror_header_info = 0;
         ig_md.mirror_session = 0;
+        ig_md.tstamp_slot = 0;
+        ig_md.t3 = 0;
 
 //        hdr.bridge.setValid();
 //        hdr.bridge.header_type  = HEADER_TYPE_BRIDGE;
 //        hdr.bridge.header_info  = 0;
-        
+
         transition parse_ethernet;
     }
 
     state parse_ethernet {
         pkt.extract(hdr.ethernet);
         transition select(hdr.ethernet.etherType) {
-            ETHERTYPE_IPV4: parse_ipv4;
-            ETHERTYPE_ARP:  parse_arp;
-            ETHERTYPE_D6G:  parse_d6g;
-            default: accept;
+            ETHERTYPE_IPV4:             parse_ipv4;
+            ETHERTYPE_ARP:              parse_arp;
+            ETHERTYPE_D6G:              parse_d6g;
+            ETHERTYPE_CLOCK_SYNC:       parse_clock_sync;
+            default:                    accept;
         }
     }
+
+    state parse_clock_sync{
+        pkt.extract(hdr.clock_sync);
+        transition accept;
+    }
+
 
     state parse_ipv4 {
         pkt.extract(hdr.ipv4);
@@ -228,6 +248,7 @@ parser NFIngressParser(
         pkt.extract(hdr.d6gmain);
         transition select(hdr.d6gmain.nextHeader){
             ETHERTYPE_D6GINT: parse_d6gint;
+            ETHERTYPE_CLOCK_SYNC: parse_clock_sync;
             default: accept;
         }
     }
@@ -258,6 +279,9 @@ control NFIngress(
     NFR() nfrouter_sw1;
     NFR() nfrouter_sw2;
     UE2SM() ue2servicemapper_sw2;
+    // a table for synchronising tofino and UE timestamps
+    ClockSync() ctrl_clock_sync_sw1;
+
 
     action drop() {
 #ifdef __TARGET_TOFINO__
@@ -323,24 +347,22 @@ control NFIngress(
         default_action = NoAction();
     }
 
-    action do_d6gint_update_t1(PortId_t port) {
+    action do_d6gint_update_t1() {
         hdr.d6gint.t1 = ig_intr_md.ingress_mac_tstamp;
-        ig_tm_md.ucast_egress_port = port;
         skip_egress();
     }
 
-    action do_d6gint_update_t2(PortId_t port) {
+    action do_d6gint_update_t2() {
         hdr.d6gint.t2 = ig_intr_md.ingress_mac_tstamp;
-        ig_tm_md.ucast_egress_port = port;
         skip_egress();
     }
 
-action do_d6gint_update_t3_and_send_report(PortId_t port, MirrorId_t mirror_session){
-        ig_tm_md.ucast_egress_port = port;
+action do_d6gint_update_t3_and_send_report(MirrorId_t mirror_session){
         meta.t3 = ig_intr_md.ingress_mac_tstamp;
         ig_dprsr_md.mirror_type = ING_PORT_MIRROR;
         hdr.d6gmain.nextHeader = hdr.d6gint.next_header;
         hdr.d6gint.setInvalid();
+        skip_egress();
 
 #ifndef P4C_3876_FIXED
         #if __TARGET_TOFINO__ > 1
@@ -358,7 +380,9 @@ action do_d6gint_update_t3_and_send_report(PortId_t port, MirrorId_t mirror_sess
             hdr.d6gmain.serviceId : ternary;
         }
         actions = {
-            do_d6gint_update_t1; do_d6gint_update_t2; NoAction; 
+            do_d6gint_update_t1;
+            do_d6gint_update_t2;
+            NoAction;
         }
         size = 512;
         default_action = NoAction();
@@ -370,7 +394,10 @@ action do_d6gint_update_t3_and_send_report(PortId_t port, MirrorId_t mirror_sess
             hdr.d6gmain.serviceId : ternary;
         }
         actions = {
-            do_d6gint_update_t1; do_d6gint_update_t2; do_d6gint_update_t3_and_send_report; NoAction; 
+            do_d6gint_update_t1;
+            do_d6gint_update_t2;
+            do_d6gint_update_t3_and_send_report;
+            NoAction;
         }
         size = 512;
         default_action = NoAction();
@@ -379,11 +406,12 @@ action do_d6gint_update_t3_and_send_report(PortId_t port, MirrorId_t mirror_sess
 
 
 
-#define SW1_1 200
-#define SW1_2 201
-#define SW2_1 202
-#define SW2_2 203
-#define SW2_3 204
+#define SW1_1 156
+#define SW1_2 188
+
+#define SW2_1 8
+#define SW2_2 16
+#define SW2_3 32
 
 
     action _switch_1() {
@@ -408,39 +436,45 @@ action do_d6gint_update_t3_and_send_report(PortId_t port, MirrorId_t mirror_sess
 
 
     apply {
-        switch ( switch_selector.apply().action_run) {
-        _switch_2: { // Emulating switch 2
-          if (hdr.arp_ipv4.isValid()) {
-            arp_responder_v4.apply();
-            skip_egress();
+        if (hdr.clock_sync.isValid() ){
+            ctrl_clock_sync_sw1.apply(hdr, ig_intr_md, ig_tm_md);
             exit;
-          }
-          if (hdr.icmp.isValid()) {
-             icmp_responder_v4.apply();
-             skip_egress();
-             exit;
-          }
-          bool skipe = true;
-          if (hdr.d6gint.isValid() ){
-                tb_d6gint_handler_sw2.apply();
-                skipe = false;
-          }
-          ue2servicemapper_sw2.apply(hdr, meta, ig_intr_md, ig_dprsr_md, ig_tm_md);
-          nfrouter_sw2.apply(hdr, meta, ig_intr_md, ig_dprsr_md, ig_tm_md);
-          if (skipe) {
-                skip_egress();
-          }
         }
-        _switch_1: { // Emulating switch 1
-          nfrouter_sw1.apply(hdr, meta, ig_intr_md, ig_dprsr_md, ig_tm_md);
 
-          if (hdr.d6gint.isValid() ){
+        switch ( switch_selector.apply().action_run) {
+            _switch_2: { // Emulating switch 2
+
+            if (hdr.arp_ipv4.isValid()) {
+                arp_responder_v4.apply();
+                skip_egress();
+                exit;
+            }
+            if (hdr.icmp.isValid()) {
+                icmp_responder_v4.apply();
+                skip_egress();
+                exit;
+            }
+              bool skipEg = true;
+            if (hdr.d6gint.isValid() ){
+                    tb_d6gint_handler_sw2.apply();
+                    skipEg = false;
+            }
+            ue2servicemapper_sw2.apply(hdr, meta, ig_intr_md, ig_dprsr_md, ig_tm_md);
+            nfrouter_sw2.apply(hdr, meta, ig_intr_md, ig_dprsr_md, ig_tm_md);
+              if (skipEg) {
+                    skip_egress();
+              }
+            }
+            _switch_1: { // Emulating switch 1
+            nfrouter_sw1.apply(hdr, meta, ig_intr_md, ig_dprsr_md, ig_tm_md);
+            if (hdr.d6gint.isValid() ){
                 tb_d6gint_handler_sw1.apply();
           } else {
                 skip_egress();
           }
+            }
         }
-        }
+
     }
 }
 
@@ -475,8 +509,8 @@ control NFIngressDeparser(
                 });
         }
 
-        /* 
-         * If there is a mirror request, create a clone. 
+        /*
+         * If there is a mirror request, create a clone.
          * Note: Mirror() externs emits the provided header, but also
          * appends the ORIGINAL ingress packet after those
          */
@@ -492,9 +526,11 @@ control NFIngressDeparser(
 
         }
 #endif
+
 //        pkt.emit(hdr.bridge);
         pkt.emit(hdr.ethernet);
         pkt.emit(hdr.d6gmain);
+        pkt.emit(hdr.clock_sync);
         pkt.emit(hdr.arp);
         pkt.emit(hdr.arp_ipv4);
         pkt.emit(hdr.ipv4);
@@ -512,7 +548,7 @@ struct egress_header_t {
     d6gint_t           d6gint;
 }
 
-/********  G L O B A L   E G R E S S   M E T A D A T A  *********/ 
+/********  G L O B A L   E G R E S S   M E T A D A T A  *********/
 
 struct egress_metadata_t {
     inthdr_h           inthdr;
@@ -551,7 +587,7 @@ parser NFEgressParser(
 
         pkt.extract(eg_intr_md);
         meta.inthdr = pkt.lookahead<inthdr_h>();
-           
+
         transition select(meta.inthdr.header_type, meta.inthdr.header_info) {
 //            ( HEADER_TYPE_BRIDGE,         _ ) :
 //                           parse_bridge;
@@ -574,7 +610,7 @@ parser NFEgressParser(
         meta.mirror_session = meta.ing_port_mirror.mirror_session;
         transition parse_ethernet;
     }
-    
+
     state parse_egr_port_mirror {
         pkt.extract(meta.egr_port_mirror);
         meta.egr_mirrored   = true;
@@ -622,10 +658,10 @@ control NFEgress(
         key = {
             meta.mirror_session: exact;
             }
-        actions = { 
-            update_d6gint_t3; 
+        actions = {
+            update_d6gint_t3;
             NoAction ;}
-        
+
         const entries = {
             10w100: update_d6gint_t3;
         }
@@ -634,10 +670,10 @@ control NFEgress(
         size = 1024;
     }
 
-    apply { 
+    apply {
         if ( meta.ing_port_mirror.isValid() ) {
             tb_handle_mirrored_packets.apply();
-        } 
+        }
     }
 }
 
