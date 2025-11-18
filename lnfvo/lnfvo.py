@@ -495,6 +495,10 @@ def parse_siteconfig(path):
       predeployed['predeployed-afs'] = sconfig['predeployed-afs']
       predeployed['predeployed-nfrs'] = sconfig['predeployed-nfrs']
       predeployed['interfaces'] = sconfig['interfaces']
+      if 'monitoring-ip' in sconfig:
+        predeployed['monitoring-ip'] = sconfig['monitoring-ip']
+        predeployed['monitoring-port'] = sconfig['monitoring-port']
+
       predeployed['sites'] = {}
       for i in sconfig['predeployed-tas']:
         addsite(predeployed['sites'], i)
