@@ -236,13 +236,16 @@ def addroutetonfr(infs, nfrsrc, nfrdst, srcnf, srcintfname, dstnf, dstintfname, 
           }
       addcpentry(nfrdst['entries'], entry)
     if srcnf['node'] != dstnf['node']:
-      ifname = f"{srcnf['node']}-{dstnf['node']}-1"
+      ifname = f"{srcnf['node']}-{dstnf['node']}-0"
 
-      #dstifname = f"{dstnf['node']}-{srcnf['node']}-1"
+      #dstifname = f"{dstnf['node']}-{srcnf['node']}-0"
       #name = getif(nfrdst, dstifname)['name']
-      dstifname = f"{dstnf['node']}-sriov-1"
 
-      # TODO srcMAC should be this?
+      if nodes.get(dstnf['node'], {}).get('sriov-capable', False):
+        dstmac = infs[f"{dstnf['node']}-sriov-0"]['mac']
+      else:
+        dstmac = nfrdst['mac']
+
       entry = {
           "table": "NFRouter",
           "action": "NFForwardMAC",
@@ -254,7 +257,7 @@ def addroutetonfr(infs, nfrsrc, nfrdst, srcnf, srcintfname, dstnf, dstintfname, 
           "actionParameters": {
             "port": port,
             "srcMAC": nfrsrc['mac'],
-            "dstMAC": infs[dstifname]['mac']
+            "dstMAC": dstmac
             }
           }
       addcpentry(nfrsrc['entries'], entry)
