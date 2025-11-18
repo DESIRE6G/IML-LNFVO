@@ -91,7 +91,7 @@ def deploy_yaml():
           if event["object"].status.phase == "Running":
             for s in currInsts[:]:
               if event['object'].metadata.name.startswith(s):
-                lnfvo.startMonitoring(data, s, event['object'].metadata.name, DEFAULT_NAMESPACE)
+                lnfvo.startMonitoring(data, s, DEFAULT_NAMESPACE, event['object'].metadata.name)
             for s in need_cp[:]:
               if event['object'].metadata.name.startswith(s):
                 mgmt_ip = event['object'].status.pod_ip
