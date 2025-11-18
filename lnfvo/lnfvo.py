@@ -289,6 +289,7 @@ def changenfrtogw(nfr):
     ]
     nfr['cmd'] = f'/p4runtime-sh/venv/bin/python  /local-cp/local-cp.py /opt/nfconfig/{nfr["files"][0]["name"]} /opt/nfconfig/{nfr["files"][1]["name"]}'
     #nfr['cmd'] = 'trap : TERM INT; sleep infinity & wait'
+
 def addta(services, node, domain):
   if f"ta-{node}" in services:
     return
@@ -635,7 +636,6 @@ def addta_enc_entries(tanf, nfrsrc_mac, site, siteintf):
   addcpentry(tanf['entries'], entry)
 
 def addue2smentries(nfrsrc, srcintf, graph_direction, srcnf, srcifindex, dstnf, dstifindex, g_index, graph_service_id, ueids, location_id):
-  # TODO this should be done with external -> external?
   nfrsrcport = getifindex(nfrsrc, srcintf)
 
   entry = {
@@ -855,7 +855,6 @@ def generate_values(nsd, path):
         addtonf(nfrdst, dstintf, dstintf, interpod_mode, dstid)
 
         if srcnf['node'] != dstnf['node']:
-
           if data["nodes"].get(dstnf['node'], {}).get('sriov-capable', False):
             sriovResName = data["nodes"].get(dstnf['node'], {}).get('sriov-vf-name', None)
             addif(data['interfaces'], dstnf['node'], "sriov", 0, sriovResName)
