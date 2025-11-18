@@ -247,16 +247,16 @@ def changenfrtogw(nfr):
     nfr['ip'] = generate_ip()
 
   addGWentries(nfr)
-  infranf_name = 'd6g-gw-v4'
-  result = run(['make', '-C', './infra-nfs', infranf_name], capture_output = True, text = True)
-  nfr['files'] = [
-      {"name": f"{infranf_name}.p4info.txtpb", "path": f"../../infra-nfs/{infranf_name}/data-plane/{infranf_name}.p4info.txtpb"},
-      {"name": f"{infranf_name}.json", "path": f"../../infra-nfs/{infranf_name}/data-plane/{infranf_name}.json"}
-  ]
-  nfr['cmd'] = f'/p4runtime-sh/venv/bin/python  /local-cp/local-cp.py /opt/nfconfig/{nfr["files"][0]["name"]} /opt/nfconfig/{nfr["files"][1]["name"]}'
-  #nfr['cmd'] = 'trap : TERM INT; sleep infinity & wait'
-def addnfr(services, node, infranfs):
-  if f"nfr-{node}" in services:
+
+  if not nfr['predeployed']:
+    infranf_name = 'd6g-gw-v4'
+    #result = run(['make', '-C', './infra-nfs', infranf_name], capture_output = True, text = True)
+    nfr['files'] = [
+        {"name": f"{infranf_name}.p4info.txtpb", "path": f"../../infra-nfs/{infranf_name}/data-plane/{infranf_name}.p4info.txtpb"},
+        {"name": f"{infranf_name}.json", "path": f"../../infra-nfs/{infranf_name}/data-plane/{infranf_name}.json"}
+    ]
+    nfr['cmd'] = f'/p4runtime-sh/venv/bin/python  /local-cp/local-cp.py /opt/nfconfig/{nfr["files"][0]["name"]} /opt/nfconfig/{nfr["files"][1]["name"]}'
+    #nfr['cmd'] = 'trap : TERM INT; sleep infinity & wait'
     return
   d = {}
   d['name'] = f'simple-switch-{nfrouter_mode}'
@@ -347,7 +347,7 @@ def addcpentry(entries, entry):
   if entry not in entries:
     entries.append(entry)
 
-def addcmdtonfr(nfr, services, interfaces, is_edge):
+def addcmdtoswitch(nfr, services, interfaces):
   anymemif = False
   ealopts = '-l 0-1 -n 4 --no-pci'
   cmdopts = ''
@@ -374,30 +374,13 @@ def addcmdtonfr(nfr, services, interfaces, is_edge):
     cmdopts += '\\"'
   else:
     cmdopts += '"'
-  if nfrouter_mode == 'dpdk':
-    cmdopts += ' --mode=poll -P'
 
-  if nfrouter_mode == 'dpdk':
-    i = 0
-    for intf in nfr['interfaces']:
-      servicewithtype, ifindex = intf['name'].rsplit('-', 1)
-      service, type = servicewithtype.rsplit('-', 1)
-      if type == 'br' or type == 'memif':
-        mac = getif(services[service], intf['name'])['mac']
-      elif type == 'sriov':
-        _if = intf['interface'].rsplit('-', 1)[0]
-        mac = interfaces[f"{_if.rsplit('-', 1)[1]}-sriov-1"]['mac']
-      cmdopts += f" --eth-dest={i},{mac}"
-      i += 1
-    cmdopts += ' --rule_ipv4="/opt/nfconfig/ipv4rules.cfg" --rule_ipv6="/opt/nfconfig/ipv6rules.cfg"'
-
-  if anymemif and nfrouter_mode == 'dpdk':
-    cmdopts += ' --relax-rx-offload --parse-ptype'
-
-  if nfrouter_mode == 'dpdk':
-    nfr['cmd'] = SingleQuotedScalarString(f'./l3fwd-static {ealopts} -- {cmdopts}')
-  elif nfrouter_mode == 't4p4s':
-    nfr['cmd'] = SingleQuotedScalarString(f'echo "nfroutereal -> ealopts += { ealopts }" >> /root/t4p4s/opts_dpdk.cfg;echo "nfrouterports -> cmdopts += { cmdopts }" >> /root/t4p4s/opts_dpdk.cfg;P4PI=/root/t4p4s/third_party/PI GRPCPP=/root/t4p4s/third_party/P4Runtime_GRPCPP GRPC=/root/t4p4s/third_party/grpc PYTHON3=/root/t4p4s/.venv/bin/python /root/t4p4s/t4p4s.sh :nfrouter p4rt dbg verbose')
+  if nfrouter_mode == 't4p4s':
+    print(f'echo "nfeal -> ealopts += { ealopts }" >> /opt/t4p4s/opts_dpdk.cfg;echo "nfports -> cmdopts += { cmdopts }" >> /opt/t4p4s/opts_dpdk.cfg;P4C=/opt/p4c P4PI=/opt/PI GRPC=/opt/grpc GRPCPP=/opt/P4Runtime_GRPCPP RTE_SDK=/opt/ /opt/t4p4s/t4p4s.sh :nf p4rt dbg verbose')
+    nfr['sidecar'] = {}
+    nfr['sidecar']['image'] = 'desire6g/dpdk-t4p4s:latest'
+    nfr['sidecar']['cmd'] = SingleQuotedScalarString(f'echo "nfeal -> ealopts += { ealopts }" >> /opt/t4p4s/opts_dpdk.cfg;echo "nfports -> cmdopts += { cmdopts }" >> /opt/t4p4s/opts_dpdk.cfg;P4C=/opt/p4c P4PI=/opt/PI GRPC=/opt/grpc GRPCPP=/opt/P4Runtime_GRPCPP RTE_SDK=/opt/ /opt/t4p4s/t4p4s.sh :nf p4rt dbg verbose')
+    #nfr['sidecar']['cmd'] = SingleQuotedScalarString('trap : TERM INT; sleep infinity & wait')
   elif nfrouter_mode == 'bmv2':
     nfr['sidecar'] = {}
     nfr['sidecar']['image'] = 'desire6g/simple-switch-bmv2:latest'
@@ -418,12 +401,14 @@ def cleanintf(services):
 def encodenfidport(nfid: int, port: int):
   return (nfid << 8) + port
 
-def addnf(services, nf, domain, gs, name=None, node=None, siteId=None):
+def addnf(services, nf, domain, gs, name=None, node=None, siteId=None, predeployed=False):
   s = {}
   s['name'] = nf['id'] if name is None else name
   s['node'] = nf['node'] if node is None else node
   s['site'] = siteId
   s['domain'] = domain
+  s['predeployed'] = predeployed
+
   s['nfids'] = []
   if 'static-nfids' in nf:
     for val in nf['static-nfids']:
@@ -440,7 +425,7 @@ def addnf(services, nf, domain, gs, name=None, node=None, siteId=None):
       s['macs'][str(idx)] = val
 
   s['ips'] = {}
-  if s['domain'] == 'external':
+  if s['domain'] == 'external' or 'static-ips' in nf:
     #s['ips'] = {}
     if 'static-ips' in nf:
       for idx, val in enumerate(nf['static-ips']):
@@ -465,19 +450,34 @@ def addnf(services, nf, domain, gs, name=None, node=None, siteId=None):
 
   services[nf['instance-id']] = s
 
-predeployed = {}
 def parse_siteconfig(path):
-  pd = {}
+  global predeployed
+  predeployed = {}
   if not os.path.isfile(path):
-    pd['predeployed-afs'] = []
-    return pd
+    predeployed['predeployed-nfs'] = []
+    predeployed['predeployed-afs'] = []
+    predeployed['predeployed-nfrs'] = []
+    predeployed['interfaces'] = []
+    predeployed['sites'] = {}
+    predeployed['nodes'] = {}
+    return
 
   with open(path, 'r') as f:
     try:
       yaml=YAML(typ='safe')
       sconfig = yaml.load(f)
-      pd['predeployed-afs'] = sconfig['predeployed-afs']
-      return pd
+      predeployed['predeployed-nfs'] = sconfig['predeployed-nfs']
+      predeployed['predeployed-afs'] = sconfig['predeployed-afs']
+      predeployed['predeployed-nfrs'] = sconfig['predeployed-nfrs']
+      predeployed['interfaces'] = sconfig['interfaces']
+      predeployed['sites'] = {}
+      predeployed['nodes'] = {}
+      for i in sconfig['nodes']:
+        node = {}
+        node['sriov-capable'] = i['sriov-capable']
+        if node['sriov-capable']:
+          node['sriov-vf-name'] = i['sriov-vf-name']
+        predeployed['nodes'][i['id']] = node
 
     except Exception as ex:
       response = (f'{type(ex).__name__}: {ex.args}', 500)
@@ -543,6 +543,7 @@ def set_active_instance(lbnf, instId):
     "actionParameters": {"instId": instId+1}
   }
   addcpentry(lbnf['entries'], entry)
+
 def addue2smentries(nfrsrc, srcintf, graph_direction, srcnf, srcifindex, dstnf, dstifindex, g_index, graph_service_id, ueids, location_id):
   # TODO this should be done with external -> external?
   nfrsrcport = getifindex(nfrsrc, srcintf)
@@ -646,6 +647,7 @@ def addmemifmount(nf, srcid):
 def generate_values(nsd, path):
   global predeployed
   global nfrouter_mode
+  global data
   with open(path, 'w') as f:
     data = {}
     data['services'] = {}
@@ -660,6 +662,9 @@ def generate_values(nsd, path):
     for i in nsd['lnsd']['ns']['network-functions']:
       addnf(data['services'], i, 'internal', gs)
 
+    for i in predeployed['predeployed-nfs']:
+      addnf(data['services'], i, 'internal', gs, 'unmanaged')
+
     for i in nsd['lnsd']['ns']['application-functions']:
       addnf(data['services'], i, i['domain'], gs)
       if data['services'][i['instance-id']].get('is-scalable', False):
@@ -672,8 +677,17 @@ def generate_values(nsd, path):
     for i in predeployed['predeployed-afs']:
       addnf(data['services'], i, i['domain'], gs, 'unmanaged')
 
+    for i in predeployed['predeployed-nfrs']:
+      addnfr(data['services'], i['node'], predeployed['predeployed-nfrs'], True)
+    for i in predeployed['interfaces']:
+      data['interfaces'][i['id']] = i
+
+    data['sites'] = predeployed['sites']
+    data['nodes'] = predeployed['nodes']
+
     for s in nsd['lnsd']['ns']['site-connections']:
-      addsite(data['sites'], s)
+      if s['id'] not in data['sites']:
+        addsite(data['sites'], s)
       for i in s['network-functions']:
         addnf(data['services'], i, 'internal', gs, 'unmanaged', s['transport-node'], s['id'])
       for i in s['application-functions']:
@@ -739,16 +753,19 @@ def generate_values(nsd, path):
         if srcnf['domain'] == 'external' and srcnf['site'] is None:
           changenfrtogw(nfrsrc)
           addue2smentries(nfrsrc, srcintf, graph_direction, srcnf, srcifindex, dstnf, dstifindex, g_index, graph_service_id, ueids, data['location-id'])
-          addroutetoinit(srcnf, dstnf, dstintf, srcintf, nfrsrc['ip'], afids if graph_direction == 'upstream' else ueids)
+          if not srcnf['predeployed'] and not srcnf.get('is-scalable', False):
+            addroutetoinit(srcnf, dstnf, dstintf, srcintf, nfrsrc['ip'], afids if graph_direction == 'upstream' else ueids)
 
     for k, n in data['services'].items():
       #if n['name'] == f'nfrouter-{nfrouter_mode}':
-      if k.startswith("nfr-"):
-        addcmdtonfr(n, data['services'], data['interfaces'], n['is_edge'])
+      if k.startswith("nfr-") and not n['predeployed']:
+        addcmdtoswitch(n, data['services'], data['interfaces'])
       elif nf_memif_setup:
         n['cmd'] += 'sleep infinity;'
 
     cleanintf(data['services'])
+    for i in predeployed['interfaces']:
+      data['interfaces'].pop(i['id'])
     if 'monitoring-ip' in predeployed:
       data['monitoring-ip'] = predeployed['monitoring-ip']
       data['monitoring-port'] = predeployed['monitoring-port']
