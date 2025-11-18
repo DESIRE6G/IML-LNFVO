@@ -114,5 +114,7 @@ if __name__ == "__main__":
   path = "./site-config.yml"
   if len( sys.argv ) > 1:
     path = sys.argv[1]
-  port = lnfvo.parse_siteconfig(path)
+  lnfvo.parse_siteconfig(path)
+  port = lnfvo.getListeningPort()
+  #lnfvo.registerToSMO()
   app.run(host='0.0.0.0', port=port, debug=True)

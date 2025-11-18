@@ -6,6 +6,7 @@ from ruamel.yaml.scalarstring import SingleQuotedScalarString,DoubleQuotedScalar
 import random
 import requests
 import time
+from subprocess import run
 
 nfrouter_mode = 't4p4s'
 nf_memif_setup = False
@@ -477,7 +478,7 @@ def addnf(services, nf, domain, gs, name=None, node=None, siteId=None, predeploy
 
 def parse_siteconfig(path):
   global predeployed
-  listening_port = 5000
+
   predeployed = {}
   if not os.path.isfile(path):
     predeployed['predeployed-nfs'] = []
@@ -486,13 +487,14 @@ def parse_siteconfig(path):
     predeployed['interfaces'] = []
     predeployed['sites'] = {}
     predeployed['nodes'] = {}
+    predeployed['listening-port'] = 5000
     return
 
   with open(path, 'r') as f:
     try:
       yaml=YAML(typ='safe')
       sconfig = yaml.load(f)
-      listening_port = sconfig.get('listening-port', 5000):
+      predeployed['listening-port'] = sconfig.get('listening-port', 5000)
       predeployed['predeployed-nfs'] = sconfig['predeployed-nfs']
       predeployed['predeployed-afs'] = sconfig['predeployed-afs']
       predeployed['predeployed-nfrs'] = sconfig['predeployed-nfrs']
@@ -500,6 +502,9 @@ def parse_siteconfig(path):
       if 'monitoring-ip' in sconfig:
         predeployed['monitoring-ip'] = sconfig['monitoring-ip']
         predeployed['monitoring-port'] = sconfig['monitoring-port']
+      if 'SMO-ip' in sconfig:
+        predeployed['SMO-ip'] = sconfig['SMO-ip']
+        predeployed['SMO-port'] = sconfig['SMO-port']
 
       predeployed['sites'] = {}
       for i in sconfig['predeployed-tas']:
@@ -516,7 +521,6 @@ def parse_siteconfig(path):
     except Exception as ex:
       response = (f'{type(ex).__name__}: {ex.args}', 500)
       traceback.print_exc()
-  return listening_port
 
 def addlb_uplink_entry(lbnf):
   uplink_port = 0
@@ -901,6 +905,27 @@ def generate_values(nsd, path):
     yaml.default_flow_style = False
     yaml.dump(data, f)
     return data
+
+def getListeningPort():
+  global predeployed
+  return predeployed['listening-port']
+
+def registerToSMO():
+  global predeployed
+  url = f"http://{predeployed['SMO-ip']}:{predeployed['SMO-port']}/register"
+  print(url)
+  result = run(['bash', '../utils/allocatable.sh']
+    , capture_output = True, text = True)
+  b = result
+  print(b)
+  #try:
+  #  x = requests.post(url, json = b)
+  #except:
+  #  raise Exception(f"SMO error: cant reach server")
+  #print('reply:', x.json())
+
+  #if x.status_code != 200:
+  #  raise Exception(f"SMO error: {x.json()}")
 
 def getScalablesCurrentInstances(data):
   currInsts = []
