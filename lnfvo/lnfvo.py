@@ -291,7 +291,57 @@ def addnfr(services, node, infranfs):
     d['cmd'] = f'/p4runtime-sh/venv/bin/python  /local-cp/local-cp.py /opt/nfconfig/{d["files"][0]["name"]} /opt/nfconfig/{d["files"][1]["name"]}'
     #d['cmd'] = 'trap : TERM INT; sleep infinity & wait'
 
+def addnfr(services, node, infranfs, predeployed=False):
+  if f"nfr-{node}" in services:
+    return
+  d = {}
+  d['is_edge'] = False
+  d['entries'] = []
+  d['predeployed'] = predeployed
+  d['node'] = node
+  d['mac'] = generate_mac()
+
+  if predeployed:
+    d['name'] = 'predeployed'
+  else:
+    if nfrouter_mode == 't4p4s' or nfrouter_mode == 'bmv2':
+      setinfranf(d, 'nfrouter', nfrouter_mode)
+
+  if infranfs:
+    nfr = next((i for i in infranfs if i['instance-id'] == f"nfr-{node}"), None)
+    if nfr:
+      if 'static-mac' in nfr:
+        d['mac'] = nfr['static-mac']
+      if 'static-ip' in nfr:
+        d['ip'] = nfr['static-ip']
+      if predeployed:
+        d['controlplane-ip'] = nfr['controlplane-ip']
+        d['controlplane-port'] = nfr['controlplane-port']
+        d['int-enabled'] = nfr.get('int-enabled', False)
+        intfs = nfr.get('interfaces', [])
+        d['interfaces'] = []
+        for i in intfs:
+          d['interfaces'].append({'interface': i, 'name': i})
+
   services[f"nfr-{node}"] = d
+
+def setinfranf(nf, infranf_name, switch_mode):
+  if switch_mode == 'bmv2':
+    nf['name'] = f'simple-switch-{switch_mode}'
+  else:
+    nf['name'] = f'dpdk-{switch_mode}'
+
+  #result = run(['make', '-C', './infra-nfs', infranf_name], capture_output = True, text = True)
+  nf['files'] = [
+      {"name": f"{infranf_name}.p4info.txtpb", "path": f"../../infra-nfs/{infranf_name}/data-plane/{infranf_name}.p4info.txtpb"},
+      {"name": f"{infranf_name}.json", "path": f"../../infra-nfs/{infranf_name}/data-plane/{infranf_name}.json"}
+  ]
+
+  nf['entries'] = []
+  nf['image'] = 'desire6g/local-cp:latest'
+  nf['cmd'] = f'/p4runtime-sh/venv/bin/python  /local-cp/local-cp.py /opt/nfconfig/{nf["files"][0]["name"]} /opt/nfconfig/{nf["files"][1]["name"]}'
+  #nf['cmd'] = 'trap : TERM INT; sleep infinity & wait'
+
 
 def addcpentry(entries, entry):
   if entry not in entries:
