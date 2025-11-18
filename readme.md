@@ -16,6 +16,8 @@ kubectl get -n desire6g pods -o wide
 
 # Stop
 kubectl delete namespace desire6g
+or
+curl -X DELETE http://localhost:5000/iml/yaml/deploy/<deploy-id>
 
 # Execute commands inside container
 kubectl exec -it deploy/<name> -- /bin/bash # or /bin/sh
