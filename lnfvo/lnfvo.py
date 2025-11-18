@@ -477,6 +477,7 @@ def addnf(services, nf, domain, gs, name=None, node=None, siteId=None, predeploy
 
 def parse_siteconfig(path):
   global predeployed
+  listening_port = 5000
   predeployed = {}
   if not os.path.isfile(path):
     predeployed['predeployed-nfs'] = []
@@ -491,6 +492,7 @@ def parse_siteconfig(path):
     try:
       yaml=YAML(typ='safe')
       sconfig = yaml.load(f)
+      listening_port = sconfig.get('listening-port', 5000):
       predeployed['predeployed-nfs'] = sconfig['predeployed-nfs']
       predeployed['predeployed-afs'] = sconfig['predeployed-afs']
       predeployed['predeployed-nfrs'] = sconfig['predeployed-nfrs']
@@ -514,6 +516,7 @@ def parse_siteconfig(path):
     except Exception as ex:
       response = (f'{type(ex).__name__}: {ex.args}', 500)
       traceback.print_exc()
+  return listening_port
 
 def addlb_uplink_entry(lbnf):
   uplink_port = 0

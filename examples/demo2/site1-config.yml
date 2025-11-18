@@ -1,3 +1,4 @@
+listening-port: 6000
 interfaces:
   - id: ran-br-0
     type: tofino

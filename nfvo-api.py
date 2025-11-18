@@ -111,11 +111,8 @@ def deploy_yaml():
   return jsonify({"response": response[0]}), response[1]
 
 if __name__ == "__main__":
-  port = 5000
   path = "./site-config.yml"
   if len( sys.argv ) > 1:
-    port = sys.argv[1]
-  if len( sys.argv ) > 2:
-    path = sys.argv[2]
-  lnfvo.parse_siteconfig(path)
+    path = sys.argv[1]
+  port = lnfvo.parse_siteconfig(path)
   app.run(host='0.0.0.0', port=port, debug=True)
