@@ -544,6 +544,24 @@ def set_active_instance(lbnf, instId):
   }
   addcpentry(lbnf['entries'], entry)
 
+def add_int_entries(nfr, serviceId):
+  if nfr.get('int-collector', False):
+    entry = {
+      "table": "tb_d6gint_handler",
+      "keys": {"serviceId": f"{serviceId} &&& 0xFFFF"},
+      "action": "do_d6gint_update_t3_and_send_report",
+      "actionParameters": {"port": 0, "mirror_session": nfr['int-mirror-session']}
+    }
+    addcpentry(nfr['entries'], entry)
+  else:
+    entry = {
+      "table": "tb_d6gint_handler",
+      "keys": {"serviceId": f"{serviceId} &&& 0xFFFF"},
+      "action": "do_d6gint_update_t2",
+      "actionParameters": {"port": 0}
+    }
+    addcpentry(nfr['entries'], entry)
+
 def addue2smentries(nfrsrc, srcintf, graph_direction, srcnf, srcifindex, dstnf, dstifindex, g_index, graph_service_id, ueids, location_id):
   # TODO this should be done with external -> external?
   nfrsrcport = getifindex(nfrsrc, srcintf)
@@ -679,6 +697,9 @@ def generate_values(nsd, path):
 
     for i in predeployed['predeployed-nfrs']:
       addnfr(data['services'], i['node'], predeployed['predeployed-nfrs'], True)
+      if data['services'][i['instance-id']].get('int-enabled', False):
+        add_int_entries(data['services'][i['instance-id']], data['default-service-id'])
+
     for i in predeployed['interfaces']:
       data['interfaces'][i['id']] = i
 
