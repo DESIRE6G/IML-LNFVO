@@ -288,30 +288,22 @@ def changenfrtogw(nfr):
     ]
     nfr['cmd'] = f'/p4runtime-sh/venv/bin/python  /local-cp/local-cp.py /opt/nfconfig/{nfr["files"][0]["name"]} /opt/nfconfig/{nfr["files"][1]["name"]}'
     #nfr['cmd'] = 'trap : TERM INT; sleep infinity & wait'
+def addta(services, node, domain):
+  if f"ta-{node}" in services:
     return
   d = {}
-  d['name'] = f'simple-switch-{nfrouter_mode}'
+  if nfrouter_mode == 'bmv2':
+    d['name'] = f'simple-switch-{nfrouter_mode}'
+  else:
+    d['name'] = f'dpdk-{nfrouter_mode}'
   d['node'] = node
-  d['mac'] = generate_mac()
-  if infranfs:
-    nfr = next((i for i in infranfs if i['instance-id'] == f"nfr-{node}"), None)
-    if nfr:
-      d['mac'] = nfr['static-mac']
-      d['ip'] = nfr['static-ip']
+  d['domain'] = domain
+  #d['mac'] = generate_mac()
+  d['interfaces'] = []
 
-  d['is_edge'] = False
-  if nfrouter_mode == 'dpdk':
-    d['files'] = {}
-    d['files']['ipv6rules.cfg'] = SingleQuotedScalarString('R::/128 0')
-    d['files']['ipv4rules.cfg'] = ''
-  elif nfrouter_mode == 't4p4s':
-    d['sidecar'] = {}
-    d['sidecar']['image'] = 'desire6g/nfrouter-t4p4s:latest'
-    d['sidecar']['cmd'] = '/root/t4p4s/examples/nfr-controlplane/venv/bin/python3 /root/t4p4s/examples/nfr-controlplane/nfr-cp.py'
-  elif nfrouter_mode == 'bmv2':
+  if nfrouter_mode == 't4p4s' or nfrouter_mode == 'bmv2':
 
-    infranf_name = 'nfrouter'
-    result = run(['make', '-C', './infra-nfs', infranf_name], capture_output = True, text = True)
+    infranf_name = 'vxlan-ta'
     d['files'] = [
         {"name": f"{infranf_name}.p4info.txtpb", "path": f"../../infra-nfs/{infranf_name}/data-plane/{infranf_name}.p4info.txtpb"},
         {"name": f"{infranf_name}.json", "path": f"../../infra-nfs/{infranf_name}/data-plane/{infranf_name}.json"}
@@ -321,6 +313,8 @@ def changenfrtogw(nfr):
     d['image'] = 'desire6g/local-cp:latest'
     d['cmd'] = f'/p4runtime-sh/venv/bin/python  /local-cp/local-cp.py /opt/nfconfig/{d["files"][0]["name"]} /opt/nfconfig/{d["files"][1]["name"]}'
     #d['cmd'] = 'trap : TERM INT; sleep infinity & wait'
+
+  services[f"ta-{node}"] = d
 
 def addnfr(services, node, infranfs, predeployed=False):
   if f"nfr-{node}" in services:
@@ -502,6 +496,9 @@ def parse_siteconfig(path):
       predeployed['predeployed-nfrs'] = sconfig['predeployed-nfrs']
       predeployed['interfaces'] = sconfig['interfaces']
       predeployed['sites'] = {}
+      for i in sconfig['predeployed-tas']:
+        addsite(predeployed['sites'], i)
+
       predeployed['nodes'] = {}
       for i in sconfig['nodes']:
         node = {}
@@ -592,6 +589,39 @@ def add_int_entries(nfr, serviceId):
       "actionParameters": {"port": 0}
     }
     addcpentry(nfr['entries'], entry)
+
+def addta_dec_entries(tanf, nfrdst_mac, srcintf):
+  nfrport = getifindex(tanf, srcintf)
+  entry = {
+    "table": "vxlan_fwd",
+    "keys": {"dstAddr": nfrdst_mac},
+    "action": "vxlan_decap",
+    "actionParameters": {"port": nfrport}
+  }
+  addcpentry(tanf['entries'], entry)
+
+def addta_enc_entries(tanf, nfrsrc_mac, site, siteintf):
+  siteport = getifindex(tanf, siteintf)
+  entry = {
+    "table": "vtep_src",
+    "keys": {"srcAddr": nfrsrc_mac},
+    "action": "set_vtep_src_ip",
+    "actionParameters": {"vtep_src_ip": site['srcip']}
+  }
+  addcpentry(tanf['entries'], entry)
+
+  entry = {
+    "table": "vtep_dst",
+    "keys": {"dstAddr": site['nfr-mac']},
+    "action": "set_vtep_dst_ip",
+    "actionParameters": {
+      "vtep_dst_ip": site['dstip'],
+      "smac": site['srcmac'],
+      "dmac": site['dstmac'],
+      "port": siteport
+    }
+  }
+  addcpentry(tanf['entries'], entry)
 
 def addue2smentries(nfrsrc, srcintf, graph_direction, srcnf, srcifindex, dstnf, dstifindex, g_index, graph_service_id, ueids, location_id):
   # TODO this should be done with external -> external?
@@ -762,16 +792,11 @@ def generate_values(nsd, path):
 
         srcid, srcifindex = l['connection-points'][0]['if-id-ref'].split(':')
         dstid, dstifindex = l['connection-points'][1]['if-id-ref'].split(':')
+        srcifindex = int(srcifindex)
+        dstifindex = int(dstifindex)
 
         srcnf = data['services'][srcid]
         dstnf = data['services'][dstid]
-
-        addif(data['interfaces'], srcid, interpod_mode, srcifindex)
-        addif(data['interfaces'], dstid, interpod_mode, dstifindex)
-        srcintf = f'{srcid}-{interpod_mode}-{srcifindex}'
-        dstintf = f'{dstid}-{interpod_mode}-{dstifindex}'
-        addtonf(srcnf, srcintf, srcintf, srcnf['macs'], srcnf['ips'], srcifindex, g_index, getnextmemifid(srcid) if interpod_mode == 'memif' else None)
-        addtonf(dstnf, dstintf, dstintf, dstnf['macs'], dstnf['ips'], dstifindex, g_index, getnextmemifid(dstid) if interpod_mode == 'memif' else None)
 
         addnfr(data['services'], srcnf['node'], nsd['lnsd']['ns'].get('infra-nfs'))
         addnfr(data['services'], dstnf['node'], nsd['lnsd']['ns'].get('infra-nfs'))
@@ -779,15 +804,43 @@ def generate_values(nsd, path):
         nfrsrc = data['services'][f"nfr-{srcnf['node']}"]
         nfrdst = data['services'][f"nfr-{dstnf['node']}"]
 
-        # TODO refactor into addnfr and addtonf or addif?
-        if interpod_mode == 'memif':
-          addmemifmount(srcnf, srcid)
-          addmemifmount(dstnf, srcid)
-          addmemifmount(nfrsrc, srcid)
-          addmemifmount(nfrdst, srcid)
+        srcintf = f'{srcid}-{interpod_mode}-{srcifindex}'
+        dstintf = f'{dstid}-{interpod_mode}-{dstifindex}'
+        tasrc = None
+        tadst = None
 
-        addtonf(nfrsrc, srcintf, srcintf)
-        addtonf(nfrdst, dstintf, dstintf)
+        addif(data['interfaces'], srcid, interpod_mode, srcifindex)
+        if l.get("is-direct", False):
+          addtonf(dstnf, srcintf, srcintf, interpod_mode, srcid, srcnf['macs'], srcnf['ips'], srcifindex, g_index)
+          addtonf(srcnf, srcintf, srcintf, interpod_mode, srcid, srcnf['macs'], srcnf['ips'], srcifindex, g_index)
+          continue
+
+        if srcnf['site'] is not None:
+          if data['sites'][srcnf['site']]['transport-type'] == 'external':
+            addta(data['services'], srcnf['node'], srcnf['domain'])
+            tasrc = data['services'][f"ta-{srcnf['node']}"]
+            addtonf(tasrc, srcintf, srcintf, interpod_mode, srcid, {0: data['sites'][srcnf['site']]['nfr-mac']}, [''], 0)
+
+            addif(data['interfaces'], f"ta-{srcnf['site']}", "br", 0)
+            addtonf(tasrc, f"ta-{srcnf['site']}-br-0", f"ta-{srcnf['site']}-br-0")
+            addta_dec_entries(tasrc, nfrdst['mac'], srcintf)
+        else:
+          addtonf(srcnf, srcintf, srcintf, interpod_mode, srcid, srcnf['macs'], srcnf['ips'], srcifindex, g_index)
+        addtonf(nfrsrc, srcintf, srcintf, interpod_mode, srcid)
+
+        addif(data['interfaces'], dstid, interpod_mode, dstifindex)
+        if dstnf['site'] is not None:
+          if data['sites'][dstnf['site']]['transport-type'] == 'external':
+            addta(data['services'], dstnf['node'], dstnf['domain'])
+            tadst = data['services'][f"ta-{dstnf['node']}"]
+            addtonf(tadst, dstintf, dstintf, interpod_mode, dstid, {0: data['sites'][dstnf['site']]['nfr-mac']}, [''], 0)
+
+            addif(data['interfaces'], f"ta-{dstnf['site']}", "br", 0)
+            addtonf(tadst, f"ta-{dstnf['site']}-br-0", f"ta-{dstnf['site']}-br-0")
+            addta_enc_entries(tadst, nfrsrc['mac'], data['sites'][dstnf['site']], f"ta-{dstnf['site']}-br-0")
+        else:
+          addtonf(dstnf, dstintf, dstintf, interpod_mode, dstid, dstnf['macs'], dstnf['ips'], dstifindex, g_index)
+        addtonf(nfrdst, dstintf, dstintf, interpod_mode, dstid)
 
         if srcnf['node'] != dstnf['node']:
 
@@ -820,6 +873,8 @@ def generate_values(nsd, path):
     for k, n in data['services'].items():
       #if n['name'] == f'nfrouter-{nfrouter_mode}':
       if k.startswith("nfr-") and not n['predeployed']:
+        addcmdtoswitch(n, data['services'], data['interfaces'])
+      elif k.startswith("ta-"):
         addcmdtoswitch(n, data['services'], data['interfaces'])
       elif n.get('is-scalable', False):
         addcmdtoswitch(n, data['services'], data['interfaces'])
