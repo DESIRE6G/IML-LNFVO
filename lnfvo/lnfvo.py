@@ -144,23 +144,47 @@ def addtonf(nf, name, intf, interpod_mode=None, nfid=None, macs=None, ips=None, 
   else:
     nf['interfaces'].append(i)
 
-def addroutetonfr(infs, nfrsrc, nfrdst, srcnf, srcintfname, dstnf, dstintfname, serviceid, g_index, l_index, locationId):
-  nfrdstport = getifindex(nfrdst, dstintfname)
-  nfrsrcport = getifindex(nfrsrc, srcintfname)
-  srcintf = getif(srcnf, srcintfname)
-  dstintf = getif(dstnf, dstintfname)
-  srcport = str(getifindex(srcnf, srcintfname))
-  dstport = str(getifindex(dstnf, dstintfname))
+def addroutetonfr(infs, nfrsrc, nfrdst, srcnf, srcintfname, dstnf, dstintfname, dstifindex, serviceid, g_index, locationId, sites, nodes, tasrc, tadst):
 
-  if nfrouter_mode == 'dpdk':
-    nfrdst['files']['ipv4rules.cfg'] += f"R{dstintf['ip']}/32 {nfrdstport}\n"
-    if srcnf['node'] != dstnf['node']:
-      port = getifindex(nfrsrc, f"{srcnf['node']}-{dstnf['node']}-1")
-      nfrsrc['files']['ipv4rules.cfg'] += f"R{dstintf['ip']}/32 {port}\n"
-  elif nfrouter_mode == 't4p4s' or nfrouter_mode == 'bmv2':
+  if srcnf['site'] is not None:
+    if sites[srcnf['site']]['transport-type'] == 'internal':
+      srcintfname = sites[srcnf['site']]['transport-interface']
+    else:
+      print("external")
 
-    # TODO refactor to if link is not from external?
-    if l_index != 0:
+  if dstnf['site'] is not None:
+    if sites[dstnf['site']]['transport-type'] == 'internal':
+      #dstintf = getif(tadst, dstintfname)
+      #dstport = str(getifindex(tadst, dstintfname))
+      dstport = dstifindex
+      dstintfname = sites[dstnf['site']]['transport-interface']
+      dstmac = sites[dstnf['site']]['nfr-mac']
+    else:
+      print("external")
+  else:
+    dstmac = getif(dstnf, dstintfname)['mac']
+    dstport = str(getifindex(dstnf, dstintfname))
+
+  if infs[srcintfname]['type'] == 'tofino':
+    nfrsrcport = infs[srcintfname]['port']
+  else:
+    nfrsrcport = getifindex(nfrsrc, srcintfname)
+
+  #if srcnf['site'] is not None:
+  #  srcintf = getif(tasrc, srcintfname)
+  #  srcport = str(getifindex(tasrc, srcintfname))
+  #else:
+  #  srcintf = getif(srcnf, srcintfname)
+  #  srcport = str(getifindex(srcnf, srcintfname))
+
+  if infs[dstintfname]['type'] == 'tofino':
+    nfrdstport = infs[dstintfname]['port']
+  else:
+    nfrdstport = getifindex(nfrdst, dstintfname)
+
+  if nfrouter_mode == 't4p4s' or nfrouter_mode == 'bmv2':
+
+    if srcnf['domain'] != 'external' and srcnf['site'] == dstnf['site'] and srcnf['node'] == dstnf['node']:
       entry = {
           "table": "NFPortClassifier",
           "action": "NoAction",
@@ -179,7 +203,7 @@ def addroutetonfr(infs, nfrsrc, nfrdst, srcnf, srcintfname, dstnf, dstintfname, 
           "actionParameters": {"nfid": encodenfidport(dstnf['nfids'][g_index], int(dstport))}
           }
       addcpentry(nfrsrc['entries'], entry)
-    if dstnf['domain'] == 'internal':
+    if dstnf['domain'] == 'internal' or dstnf['site'] is not None:
       entry = {
           "table": "NFRouter",
           "action": "NFForwardMAC",
@@ -190,12 +214,12 @@ def addroutetonfr(infs, nfrsrc, nfrdst, srcnf, srcintfname, dstnf, dstintfname, 
             },
           "actionParameters": {
             "port": nfrdstport,
-            "dstMAC": dstintf['mac']
             "srcMAC": nfrdst['mac'],
+            "dstMAC": dstmac
             }
           }
       addcpentry(nfrdst['entries'], entry)
-    elif dstnf['domain'] == 'external':
+    elif dstnf['domain'] == 'external' and dstnf['site'] is None:
       entry = {
           "table": "NFRouter",
           "action": "NFForwardToExternal",
@@ -206,14 +230,13 @@ def addroutetonfr(infs, nfrsrc, nfrdst, srcnf, srcintfname, dstnf, dstintfname, 
             },
           "actionParameters": {
             "port": nfrdstport,
-            "dstMAC": dstintf['mac']
             "srcMAC": nfrdst['mac'],
+            "dstMAC": dstmac
             }
           }
       addcpentry(nfrdst['entries'], entry)
     if srcnf['node'] != dstnf['node']:
       ifname = f"{srcnf['node']}-{dstnf['node']}-1"
-      port = getifindex(nfrsrc, ifname)
 
       #dstifname = f"{dstnf['node']}-{srcnf['node']}-1"
       #name = getif(nfrdst, dstifname)['name']
@@ -614,15 +637,20 @@ def addGWentries(nfr):
 
 
 def addsite(sites, s):
+  if s['id'] in sites:
+    return
   site = {}
-  site['srcmac'] = s['srcmac']
-  site['dstmac'] = s['dstmac']
-  site['srcip'] = s['srcip']
-  site['dstip'] = s['dstip']
   site['nfr-mac'] = s['nfr-mac']
-  site['transport-type'] = s['transport-type']
   site['transport-node'] = s['transport-node']
-  data['sites'][s['id']] = site
+  site['transport-type'] = s['transport-type']
+  if site['transport-type'] == 'external':
+    site['srcmac'] = s['srcmac']
+    site['dstmac'] = s['dstmac']
+    site['srcip'] = s['srcip']
+    site['dstip'] = s['dstip']
+  else:
+    site['transport-interface'] = s['transport-interface']
+  sites[s['id']] = site
 
 def getueidsofgraph(links, graph_direction, services, afs, sites):
   # AF IPS are not neccessary treat it as a debug feature
@@ -710,18 +738,18 @@ def generate_values(nsd, path):
       if s['id'] not in data['sites']:
         addsite(data['sites'], s)
       for i in s['network-functions']:
-        addnf(data['services'], i, 'internal', gs, 'unmanaged', s['transport-node'], s['id'])
+        addnf(data['services'], i, 'internal', gs, 'unmanaged', data['sites'][s['id']]['transport-node'], s['id'])
       for i in s['application-functions']:
-        addnf(data['services'], i, i['domain'], gs, 'unmanaged', s['transport-node'], s['id'])
+        addnf(data['services'], i, 'internal', gs, 'unmanaged', data['sites'][s['id']]['transport-node'], s['id'])
 
     for g_index, g in enumerate(nsd['lnsd']['ns']['forwarding_graphs']):
       nfrouter_mode = g.get('nfrouter-mode', data['default-nfr-mode'])
       graph_direction = g['direction']
       graph_service_id = g.get('service-id', data['default-service-id'])
 
-      ueids, afids = getueidsofgraph(g['links'], graph_direction, data['services'], nsd['lnsd']['ns']['application-functions'])
+      ueids, afids = getueidsofgraph(g['links'], graph_direction, data['services'], nsd['lnsd']['ns']['application-functions'], nsd['lnsd']['ns']['site-connections'])
 
-      for l_index, l in enumerate(g['links']):
+      for l in g['links']:
         interpod_mode = l.get("interpod-mode", data['default-interpod-mode'])
 
         srcid, srcifindex = l['connection-points'][0]['if-id-ref'].split(':')
