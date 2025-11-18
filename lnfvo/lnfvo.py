@@ -645,6 +645,7 @@ def addue2smentries(nfrsrc, srcintf, graph_direction, srcnf, srcifindex, dstnf, 
         "table": "ServiceMapper",
         "action": "setD6GService",
         "keys": {
+          "ingress_port": nfrsrcport,
           "direction": 0 if graph_direction == 'upstream' else 1,
           "ueid": f"{ueid}/32"},
         "actionParameters": {
