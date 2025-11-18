@@ -730,8 +730,8 @@ def getueidsofgraph(links, graph_direction, services, afs, sites):
       afids.append(af_candidate['ips'][dstifidx])
   return ueids, afids
 
-def addmemifmount(nf, srcid):
-  nf['hostpath'] = {'name': 'shared-dir', 'hostpath': f"/run/vpp/{srcid}", 'path': "/var/lib/cni/usrspcni"}
+def addmemifmount(nf, nfid):
+  nf['hostpath'] = {'name': 'shared-dir', 'hostpath': f"/run/vpp/{nfid}", 'path': "/var/lib/cni/usrspcni"}
 
 def generate_values(nsd, path):
   global predeployed
