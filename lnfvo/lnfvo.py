@@ -750,15 +750,21 @@ def generate_values(nsd, path):
             addtonf(nfrsrc, f"{srcnf['node']}-{dstnf['node']}-br-0", f"{srcnf['node']}-{dstnf['node']}-0")
 
         addroutetonfr(data['interfaces'], nfrsrc, nfrdst, srcnf, srcintf, dstnf, dstintf, dstifindex, graph_service_id, g_index, data['location-id'], data['sites'], data['nodes'], tasrc, tadst)
+
         if srcnf['domain'] == 'external' and srcnf['site'] is None:
           changenfrtogw(nfrsrc)
           addue2smentries(nfrsrc, srcintf, graph_direction, srcnf, srcifindex, dstnf, dstifindex, g_index, graph_service_id, ueids, data['location-id'])
           if not srcnf['predeployed'] and not srcnf.get('is-scalable', False):
             addroutetoinit(srcnf, dstnf, dstintf, srcintf, nfrsrc['ip'], afids if graph_direction == 'upstream' else ueids)
 
+        if srcnf.get('is-scalable', False):
+          addlb_uplink_entry(srcnf)
+
     for k, n in data['services'].items():
       #if n['name'] == f'nfrouter-{nfrouter_mode}':
       if k.startswith("nfr-") and not n['predeployed']:
+        addcmdtoswitch(n, data['services'], data['interfaces'])
+      elif n.get('is-scalable', False):
         addcmdtoswitch(n, data['services'], data['interfaces'])
       elif nf_memif_setup:
         n['cmd'] += 'sleep infinity;'
