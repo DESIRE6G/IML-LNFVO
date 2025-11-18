@@ -141,7 +141,7 @@ def addtonf(nf, name, intf, interpod_mode=None, nfid=None, macs=None, ips=None, 
     if not nf.get('is-scalable', False):
       addiptoinit(nf, ips[ifindex], intf, i['memifid'] if interpod_mode == 'memif' else None, macs[ifindex])
   if ifindex is not None:
-    nf['interfaces'].insert(ifindex, i)
+    nf['interfaces'].insert(int(ifindex), i)
   else:
     nf['interfaces'].append(i)
 
@@ -806,8 +806,8 @@ def generate_values(nsd, path):
 
         srcid, srcifindex = l['connection-points'][0]['if-id-ref'].split(':')
         dstid, dstifindex = l['connection-points'][1]['if-id-ref'].split(':')
-        srcifindex = int(srcifindex)
-        dstifindex = int(dstifindex)
+        srcifindex = str(srcifindex)
+        dstifindex = str(dstifindex)
 
         srcnf = data['services'][srcid]
         dstnf = data['services'][dstid]
