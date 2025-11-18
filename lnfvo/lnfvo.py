@@ -238,6 +238,11 @@ def addroutetonfr(infs, nfrsrc, nfrdst, srcnf, srcintfname, dstnf, dstintfname, 
     if srcnf['node'] != dstnf['node']:
       ifname = f"{srcnf['node']}-{dstnf['node']}-0"
 
+      if ifname in infs and infs[ifname]['type'] == 'tofino':
+        port = infs[ifname]['port']
+      else:
+        port = getifindex(nfrsrc, ifname)
+
       #dstifname = f"{dstnf['node']}-{srcnf['node']}-0"
       #name = getif(nfrdst, dstifname)['name']
 
