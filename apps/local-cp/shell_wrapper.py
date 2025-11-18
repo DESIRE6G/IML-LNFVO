@@ -27,7 +27,11 @@ def insertTableEntry(sh, parameters):
     for k, v in parameters["actionParameters"].items():
       te.action[k] = str(v)
 
-    te.insert()
+    # TODO use proper exception
+    try:
+      te.insert()
+    except:
+      te.modify()
     return "OK"
 
 def getTableEntries(sh, tableName):
