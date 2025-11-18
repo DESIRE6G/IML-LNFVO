@@ -414,7 +414,7 @@ def addcmdtoswitch(nfr, services, interfaces):
     nfr['sidecar']['cmd'] = SingleQuotedScalarString(f'simple_switch_grpc --log-console --device-id 1 {bmv2opts} /opt/nfconfig/{nfr["files"][1]["name"]} -- --grpc-server-addr 0.0.0.0:50051')
     #nfr['sidecar']['cmd'] = SingleQuotedScalarString('trap : TERM INT; sleep infinity & wait')
 
-def cleanintf(services):
+def cleanintf(services, unmanaged):
   for s in list(services):
     for i in services[s]['interfaces']:
       if 'ip' in i:
@@ -422,7 +422,9 @@ def cleanintf(services):
       if 'memifid' in i:
         del i['mac']
         del i['memifid']
-    if services[s]['name'] == 'unmanaged':
+    if services[s]['name'] == 'unmanaged' or services[s]['name'] == 'predeployed':
+      if 'entries' in services[s]:
+        unmanaged[s] = services[s]
       del services[s]
 
 def encodenfidport(nfid: int, port: int):
@@ -892,9 +894,11 @@ def generate_values(nsd, path):
       elif nf_memif_setup:
         n['cmd'] += 'sleep infinity;'
 
-    cleanintf(data['services'])
+    data['unmanaged'] = {}
+    cleanintf(data['services'], data['unmanaged'])
     for i in predeployed['interfaces']:
       data['interfaces'].pop(i['id'])
+
     if 'monitoring-ip' in predeployed:
       data['monitoring-ip'] = predeployed['monitoring-ip']
       data['monitoring-port'] = predeployed['monitoring-port']
@@ -954,10 +958,10 @@ def getNFCPstofill(data):
       need_cp.append(s)
   return need_cp
 
-def fillCPofNF(data, nfid, mgmt_ip, mgmt_port=5000):
+def fillCPofNF(services, nfid, mgmt_ip, mgmt_port=5000):
   print(nfid)
 
-  for e in data['services'][nfid]['entries']:
+  for e in services[nfid]['entries']:
     print(e)
     url = f'http://{mgmt_ip}:{mgmt_port}/api/tables/'
     x = requests.post(url, json = e)
