@@ -11,7 +11,8 @@ nodes:
   - id: "t2"
     sriov-capable: false
   - id: "p42"
-    sriov-capable: false
+    sriov-capable: true
+    sriov-vf-name: "nvidia.com/cx5_vf"
 
 predeployed-nfrs:
   - instance-id: "nfr-t2"

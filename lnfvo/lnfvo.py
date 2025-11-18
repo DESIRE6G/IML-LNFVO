@@ -91,14 +91,14 @@ def addroutetoinit(srcnf, dstnf, dstintf, srcintf, d6g_gw, afids):
     srcnf["initcmd"] += f"ip route add {d6g_gw}/32 dev {srcintf};ip route replace default via {d6g_gw} dev {srcintf};"
     srcnf["initcmd"] = SingleQuotedScalarString(srcnf["initcmd"])
 
-def addif(dic, name, type, ifindex=None):
+def addif(dic, name, type, ifindex=None, vfname="nvidia.com/cx6dx_vf"):
   if f"{name}-{type}-{ifindex}" in dic:
     return
   n = {}
   n["type"] = type
   if type == "sriov":
     n["mac"] = SingleQuotedScalarString(generate_mac())
-    n["vf"] = SingleQuotedScalarString("nvidia.com/cx6dx_vf")
+    n["vf"] = SingleQuotedScalarString(vfname)
   if type == "memif":
     n["bridgedomain"] = getnextmemifbridgeid()
 
@@ -663,14 +663,24 @@ def generate_values(nsd, path):
         addtonf(nfrdst, dstintf, dstintf)
 
         if srcnf['node'] != dstnf['node']:
-          addif(data['interfaces'], srcnf['node'], "sriov", 1)
-          addif(data['interfaces'], dstnf['node'], "sriov", 1)
-          addtonf(nfrsrc, f"{srcnf['node']}-sriov-1", f"{srcnf['node']}-{dstnf['node']}-1")
 
-        addroutetonfr(data['interfaces'], nfrsrc, nfrdst, srcnf, srcintf, dstnf, dstintf, graph_service_id, g_index, l_index, data['location-id'])
+          if data["nodes"].get(dstnf['node'], {}).get('sriov-capable', False):
+            sriovResName = data["nodes"].get(dstnf['node'], {}).get('sriov-vf-name', None)
+            addif(data['interfaces'], dstnf['node'], "sriov", 0, sriovResName)
 
-        #if srcnf['domain'] == 'external' and dstnf['domain'] == 'internal':
-        if srcnf['domain'] == 'external':
+          if data["nodes"].get(srcnf['node'], {}).get('sriov-capable', False):
+            sriovResName = data["nodes"].get(srcnf['node'], {}).get('sriov-vf-name', None)
+            addif(data['interfaces'], srcnf['node'], "sriov", 0, sriovResName)
+            addtonf(nfrsrc, f"{srcnf['node']}-sriov-0", f"{srcnf['node']}-{dstnf['node']}-0")
+            if sriovResName:
+              nfrsrc['vfres'] = sriovResName
+              # TODO number of req vfs
+          else:
+            addif(data['interfaces'], f"{srcnf['node']}-{dstnf['node']}", "br", 0)
+            addtonf(nfrsrc, f"{srcnf['node']}-{dstnf['node']}-br-0", f"{srcnf['node']}-{dstnf['node']}-0")
+
+        addroutetonfr(data['interfaces'], nfrsrc, nfrdst, srcnf, srcintf, dstnf, dstintf, dstifindex, graph_service_id, g_index, data['location-id'], data['sites'], data['nodes'], tasrc, tadst)
+        if srcnf['domain'] == 'external' and srcnf['site'] is None:
           changenfrtogw(nfrsrc)
           addue2smentries(nfrsrc, srcintf, graph_direction, srcnf, srcifindex, dstnf, dstifindex, g_index, graph_service_id, ueids, data['location-id'])
           addroutetoinit(srcnf, dstnf, dstintf, srcintf, nfrsrc['ip'], afids if graph_direction == 'upstream' else ueids)

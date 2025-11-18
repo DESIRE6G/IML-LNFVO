@@ -139,6 +139,13 @@ patches:
           {{- if hasKey .nf "cmd" }}
             args: [ '{{ .nf.cmd }}' ]
           {{- end }}
+          {{- if hasKey .nf "vfres" }}
+            resources:
+              requests:
+                {{ .nf.vfres }}: '1'
+              limits:
+                {{ .nf.vfres }}: '1'
+          {{- end }}
           {{- if or (hasKey .nf "files") (hasKey .nf "hostpath") }}
             volumeMounts:
           {{- end }}
