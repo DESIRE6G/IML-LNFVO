@@ -1,11 +1,14 @@
+monitoring-ip: "10.30.2.36"
+monitoring-port: "3500"
+
 interfaces:
   - id: site2-site1-0
     type: tofino
-    port: 53
+    port: 32 # 53
 
   - id: t2-p42-br-0
     type: tofino
-    port: 55
+    port: 8 # 55
 
 nodes:
   - id: "t2"

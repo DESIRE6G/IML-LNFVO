@@ -1,11 +1,11 @@
 interfaces:
   - id: ran-br-0
     type: tofino
-    port: 39
+    port: 156 # 49
 
   - id: site1-site2-0
     type: tofino
-    port: 50
+    port: 188 # 51
 
 nodes:
   - id: "t1"
@@ -21,7 +21,7 @@ predeployed-nfrs:
     interfaces: ["ran-br-0", "site1-site2-0"]
 
 predeployed-tas:
-iult out of range- id: "site2"
+  - id: "site2"
     transport-type: "internal"
     transport-node: "t1"
     transport-interface: "site1-site2-0"
