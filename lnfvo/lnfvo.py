@@ -115,7 +115,7 @@ def getifindex(nf, intf):
   x = next(i for i, dic in enumerate(nf['interfaces']) if dic['interface'] == intf)
   return x
 
-def addtonf(nf, name, intf, macs=None, ips=None, ifindex=None, g_index=None, memifid=None):
+def addtonf(nf, name, intf, interpod_mode=None, nfid=None, macs=None, ips=None, ifindex=None, g_index=None):
   if 'interfaces' not in nf:
     nf['interfaces'] = []
   x = next((i for i in nf['interfaces'] if i['interface'] == intf), None)
@@ -125,8 +125,10 @@ def addtonf(nf, name, intf, macs=None, ips=None, ifindex=None, g_index=None, mem
   i = {}
   i['interface'] = intf
   i['name'] = name
-  if memifid is not None:
-    i['memifid'] = memifid
+
+  if interpod_mode == 'memif':
+    i['memifid'] = getnextmemifid(nfid)
+    addmemifmount(nf, nfid)
   if macs is not None:
     if ifindex not in macs:
       macs[ifindex] = generate_mac()
@@ -137,6 +139,10 @@ def addtonf(nf, name, intf, macs=None, ips=None, ifindex=None, g_index=None, mem
     i['ip'] = ips[ifindex]
     if not nf.get('is-scalable', False):
       addiptoinit(nf, ips[ifindex], intf, i['memifid'] if interpod_mode == 'memif' else None, macs[ifindex])
+  if ifindex is not None:
+    nf['interfaces'].insert(ifindex, i)
+  else:
+    nf['interfaces'].append(i)
 
 def addroutetonfr(infs, nfrsrc, nfrdst, srcnf, srcintfname, dstnf, dstintfname, serviceid, g_index, l_index, locationId):
   nfrdstport = getifindex(nfrdst, dstintfname)
