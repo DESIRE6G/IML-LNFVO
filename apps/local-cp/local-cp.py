@@ -9,8 +9,6 @@ from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 
-# Check if these threaded queue is the best solution with while trues?
-
 def response_generator(requestQueue, responseData, exit_signal):
     while not exit_signal.is_set():
         if not requestQueue.empty():
@@ -24,7 +22,6 @@ def response_generator(requestQueue, responseData, exit_signal):
                 response = "Can't interpret request"
             responseData[token] = response
             print("response:", response)
-        time.sleep(0.1)
     sw.teardownConnection(sh)
 
 requestQueue = queue.Queue()
@@ -53,7 +50,6 @@ def get_table_request(table_name):
             response = responseData.pop(token)
             print(response)
             return jsonify({"table_data": response}), 200
-        time.sleep(0.1)
 
 @app.route("/api/tables/<table_name>", methods=["DELETE"])
 def delete_table_request(table_name):
@@ -64,7 +60,6 @@ def delete_table_request(table_name):
         if token in responseData:
             response = responseData.pop(token)
             return jsonify({"response": response}), 200
-        time.sleep(0.1)
 
 @app.route("/api/tables/", methods=["POST"])
 def insert_into_table_request():
@@ -76,7 +71,6 @@ def insert_into_table_request():
         if token in responseData:
             response = responseData.pop(token)
             return jsonify({"response": response}), 200
-        time.sleep(0.1)
 
 if __name__ == "__main__":
     if len( sys.argv ) != 3:
@@ -84,7 +78,5 @@ if __name__ == "__main__":
       sys.exit(-1)
     p4infoFile = sys.argv[1]
     binFile = sys.argv[2]
-    #p4infoFile = "d6g-gw-v4.p4runtime.txt"
-    #binFile = "../data-plane/d6g-gw-v4.json"
     sw.uploadDP(p4infoFile, binFile)
     app.run(host='0.0.0.0', port=5000, debug=True)
