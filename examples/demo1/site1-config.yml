@@ -1,4 +1,6 @@
 listening-port: 6000
+SMO-ip: 127.0.0.1
+SMO-port: 5000
 interfaces:
   - id: ran-br-0
     type: tofino

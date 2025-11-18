@@ -1,4 +1,6 @@
 listening-port: 6001
+SMO-ip: 127.0.0.1
+SMO-port: 5000
 monitoring-ip: "10.30.2.36"
 monitoring-port: "3500"
 
