@@ -184,8 +184,8 @@ def addroutetonfr(infs, nfrsrc, nfrdst, srcnf, srcintfname, dstnf, dstintfname, 
             },
           "actionParameters": {
             "port": nfrdstport,
-            "srcMAC": nfrsrc['mac'],
             "dstMAC": dstintf['mac']
+            "srcMAC": nfrdst['mac'],
             }
           }
       addcpentry(nfrdst['entries'], entry)
@@ -200,8 +200,8 @@ def addroutetonfr(infs, nfrsrc, nfrdst, srcnf, srcintfname, dstnf, dstintfname, 
             },
           "actionParameters": {
             "port": nfrdstport,
-            "srcMAC": nfrsrc['mac'], # or nfrsrc sriov's MAC
             "dstMAC": dstintf['mac']
+            "srcMAC": nfrdst['mac'],
             }
           }
       addcpentry(nfrdst['entries'], entry)
