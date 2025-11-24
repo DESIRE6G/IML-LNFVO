@@ -611,7 +611,7 @@ def add_int_entries(nfr, serviceId):
       "table": "tb_d6gint_handler",
       "keys": {"serviceId": f"{serviceId} &&& 0xFFFF"},
       "action": "do_d6gint_update_t3_and_send_report",
-      "actionParameters": {"port": 0, "mirror_session": nfr['int-mirror-session']}
+      "actionParameters": {"mirror_session": nfr['int-mirror-session']}
     }
     addcpentry(nfr['entries'], entry)
   else:
@@ -619,9 +619,31 @@ def add_int_entries(nfr, serviceId):
       "table": "tb_d6gint_handler",
       "keys": {"serviceId": f"{serviceId} &&& 0xFFFF"},
       "action": "do_d6gint_update_t2",
-      "actionParameters": {"port": 0}
+      "actionParameters": {}
     }
     addcpentry(nfr['entries'], entry)
+
+    #entry = {
+    #  "table": "tb_clock_sync",
+    #  "keys": {"count": "0"},
+    #  "action": "just_forward",
+    #  "actionParameters": {"port": "156"}
+    #}
+    #addcpentry(nfr['entries'], entry)
+    #entry = {
+    #  "table": "tb_clock_sync",
+    #  "keys": {"count": "1"},
+    #  "action": "clock_sync_add_t1",
+    #  "actionParameters": {"port": "156"}
+    #}
+    #addcpentry(nfr['entries'], entry)
+    #entry = {
+    #  "table": "tb_clock_sync",
+    #  "keys": {"count": "3"},
+    #  "action": "clock_sync_add_t3",
+    #  "actionParameters": {"port": "16"}
+    #}
+    #addcpentry(nfr['entries'], entry)
 
 def addta_dec_entries(tanf, nfrdst_mac, srcintf):
   nfrport = getifindex(tanf, srcintf)
