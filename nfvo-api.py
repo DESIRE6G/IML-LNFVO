@@ -35,7 +35,7 @@ def deleteDeployment(id):
   if result.stderr:
     return jsonify({"response": result.stderr}), 500
   else:
-    return jsonify({"response": f"Succesfull deletion of the deployment with id: {id}"}), 200
+    return jsonify({"response": f"Successfull deletion of the deployment with id: {id}"}), 200
 
 @app.route("/iml/scale/<service_id>/<job_id>", methods=["POST"])
 def set_scalable_instance(service_id, job_id):
@@ -77,7 +77,7 @@ def deploy_yaml():
       need_cp = lnfvo.getNFCPstofill(data)
       currInsts = lnfvo.getScalablesCurrentInstances(data)
 
-      for s in data['unamanged']:
+      for s in data['unmanaged']:
         lnfvo.fillCPofNF(data, s, data['services'][s]['controlplane-ip'], data['services'][s]['controlplane-port'])
 
       if need_cp or currInsts:
