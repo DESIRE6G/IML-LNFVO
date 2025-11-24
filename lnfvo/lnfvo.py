@@ -550,6 +550,25 @@ def store_mgmtaddr(nfid, mgmt_ip):
   global data
   data['services'][nfid]["mgmt_ip"] = mgmt_ip
 
+def stopAllMonitoring():
+  global data
+  for s in data['services']:
+    print(s)
+    if 'job-id' in s:
+      stopMonitoring(s['job-id'])
+
+def stopMonitoring(jobid):
+  global data
+  # kikeresni azokat a job id-ket amik el vannak tarolva es deaktivalni oket
+  url = f"http://{data['monitoring-ip']}:{data['monitoring-port']}/Forecasting/deactivateJob/{jobid}"
+  try:
+    reply = requests.put(url)
+  except:
+    raise Exception(f"Monitoring error: cant reach server")
+  print('reply:', x.json())
+  if x.status_code != 200:
+    raise Exception(f"Monitoring error: {x.json()}")
+
 def set_scalable_instance(serviceId, jobId):
   global data
 
@@ -941,7 +960,6 @@ def getScalablesCurrentInstances(data):
 
 def startMonitoring(data, nf, ns, podName):
   url = f"http://{data['monitoring-ip']}:{data['monitoring-port']}/Forecasting/activateJob/{data['default-service-id']}/{ns}/{podName}"
-  print(url)
   try:
     reply = requests.put(url)
   except:

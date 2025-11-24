@@ -32,6 +32,8 @@ def get_next_deploy_id():
 def deleteDeployment(id):
   result = run(['helm', 'uninstall', '--namespace', DEFAULT_NAMESPACE, f'deploy-{id}'], capture_output = True, text = True)
 
+  stopAllMonitoring()
+
   if result.stderr:
     return jsonify({"response": result.stderr}), 500
   else:
