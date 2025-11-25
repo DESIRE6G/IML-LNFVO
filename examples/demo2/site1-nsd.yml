@@ -1,5 +1,5 @@
 lnsd:
-  ns-instance-id: "11223344"
+  ns-instance-id: "22113344"
   ns:
     name: "Demo2 scenario"
     id: "bbbbcccc"
@@ -19,7 +19,6 @@ lnsd:
         id: "iperf3"
         name: "Pkt destination"
         version: "1.0"
-        node: "xtreme"
         domain: "external"
         static-nfids: [33,43]
         static-macs: ["02:22:33:44:55:99"]
@@ -33,7 +32,6 @@ lnsd:
         id: "reflector-bmv2"
         name: "reflector nf"
         version: "1.0"
-        node: "xtreme"
         static-nfids: [32,42]
         static-macs: ["02:66:66:66:66:66"]
 

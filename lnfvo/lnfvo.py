@@ -7,6 +7,7 @@ import random
 import requests
 import time
 from subprocess import run
+#from yaml_patch import patch_yaml
 
 nfrouter_mode = 't4p4s'
 nf_memif_setup = False
@@ -1009,3 +1010,17 @@ def fillCPofNF(services, nfid, mgmt_ip, mgmt_port=5000):
     if x.status_code != 200:
       raise Exception(f"Controlplane error: {x.json()}")
   print('---')
+
+def determine_nodes(yaml_data):
+  patches = []
+  if yaml_data['lnsd']['ns-instance-id'] == "55667788": # demo1
+    yaml_data['lnsd']['ns']['application-functions'][0]['node'] = 'p42'
+    yaml_data['lnsd']['ns']['application-functions'][0]['static-instance-nodes'] = ['orin3', 'ubuntu']
+    #patches = ["lnsd.ns.application-functions.[0].node='p42'", "lnsd.ns.application-functions.[0].static-instance-nodes=['orin3', 'ubuntu']"]
+  if yaml_data['lnsd']['ns-instance-id'] == "22113344": # demo2
+    yaml_data['lnsd']['ns']['application-functions'][0]['node'] = 'xtreme'
+    yaml_data['lnsd']['ns']['application-functions'][0]['static-instance-nodes'] = ['xtreme', 'external']
+    yaml_data['lnsd']['ns']['network-functions'][0]['node'] = 'xtreme'
+    #patches = ["lnsd.ns.application-functions.[0].node='xtreme'", "lnsd.ns.application-functions.[0].static-instance-nodes=['xtreme', 'external']", "lnsd.ns.network-functions.[0].node='xtreme'"]
+  #return patch_yaml(f, patches)
+  return yaml_data

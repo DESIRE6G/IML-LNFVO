@@ -65,6 +65,7 @@ def deploy_yaml():
 
       deploy_id = get_next_deploy_id()
       values_path = os.path.join(DEPLOY_FOLDER, f'values-{deploy_id}.yaml')
+      yaml_data = lnfvo.determine_nodes(yaml_data)
       data = lnfvo.generate_values(yaml_data, values_path)
 
       if any([not data['services'][s]['predeployed'] for s in data['services']]):
