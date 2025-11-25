@@ -474,6 +474,8 @@ def addnf(services, nf, domain, gs, name=None, node=None, siteId=None, predeploy
     s['static-instance-nodes'] = nf['static-instance-nodes']
     s['current-instance'] = 0
     for i in range(s['instances']):
+      if s['static-instance-nodes'][i] == 'external':
+        continue
       addnf(services, {'id': nf['id'], 'instance-id': f"{i}--{nf['instance-id']}", 'parent-instance': nf['instance-id'] }, s['domain'], gs, node=s['static-instance-nodes'][i])
     # TODO set pod ip?
     setinfranf(s, 'af-selector', 'bmv2')
