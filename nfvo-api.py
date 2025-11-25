@@ -81,7 +81,7 @@ def deploy_yaml():
       currInsts = lnfvo.getScalablesCurrentInstances(data)
 
       for s in data['unmanaged']:
-        lnfvo.fillCPofNF(data, s, data['services'][s]['controlplane-ip'], data['services'][s]['controlplane-port'])
+        lnfvo.fillCPofNF(data['unmanaged'], s, data['unmanaged'][s]['controlplane-ip'], data['unmanaged'][s]['controlplane-port'])
 
       if need_cp or currInsts:
         config.load_kube_config()
@@ -99,7 +99,7 @@ def deploy_yaml():
               if event['object'].metadata.name.startswith(s):
                 mgmt_ip = event['object'].status.pod_ip
                 lnfvo.store_mgmtaddr(s, mgmt_ip)
-                lnfvo.fillCPofNF(data, s, mgmt_ip)
+                lnfvo.fillCPofNF(data['services'], s, mgmt_ip)
 
                 need_cp.remove(s)
               if not need_cp:
