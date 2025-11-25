@@ -976,11 +976,12 @@ def registerToSMO():
 
 def getScalablesCurrentInstances(data):
   currInsts = []
-  for s in data['services']:
-    if 'parent-instance' in data['services'][s]:
-      instId = s.split('--')[0]
-      if int(data['services'][data['services'][s]['parent-instance']]['current-instance']) == int(instId):
-        currInsts.append(s)
+  if 'monitoring-ip' in data:
+    for s in data['services']:
+      if 'parent-instance' in data['services'][s]:
+        instId = s.split('--')[0]
+        if int(data['services'][data['services'][s]['parent-instance']]['current-instance']) == int(instId):
+          currInsts.append(s)
   return currInsts
 
 def startMonitoring(data, nf, ns, podName):
