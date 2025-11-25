@@ -83,26 +83,32 @@ def deploy_yaml():
       for s in data['unmanaged']:
         lnfvo.fillCPofNF(data['unmanaged'], s, data['unmanaged'][s]['controlplane-ip'], data['unmanaged'][s]['controlplane-port'])
 
-      if need_cp or currInsts:
-        config.load_kube_config()
-        core_v1 = client.CoreV1Api()
-        w = watch.Watch()
-        time.sleep(0.5)
-        for event in w.stream(func=core_v1.list_namespaced_pod,
-                              namespace=DEFAULT_NAMESPACE,
-                              timeout_seconds=60):
-          if event["object"].status.phase == "Running":
-            for s in currInsts[:]:
-              if event['object'].metadata.name.startswith(s):
-                lnfvo.startMonitoring(data, s, DEFAULT_NAMESPACE, event['object'].metadata.name)
-            for s in need_cp[:]:
-              if event['object'].metadata.name.startswith(s):
-                mgmt_ip = event['object'].status.pod_ip
-                lnfvo.store_mgmtaddr(s, mgmt_ip)
-                lnfvo.fillCPofNF(data['services'], s, mgmt_ip)
+      wait_deploy = list(data['services'].keys())
 
-                need_cp.remove(s)
-              if not need_cp:
+      if wait_deploy:
+          config.load_kube_config()
+          core_v1 = client.CoreV1Api()
+          w = watch.Watch()
+          for event in w.stream(func=core_v1.list_namespaced_pod,
+                                namespace=DEFAULT_NAMESPACE,
+                                timeout_seconds=60):
+            if event["object"].status.phase == "Running":
+              pod_name = event['object'].metadata.name.rsplit('-', 2)[0]
+              for s in currInsts[:]:
+                if pod_name == s:
+                  lnfvo.startMonitoring(data, s, DEFAULT_NAMESPACE, event['object'].metadata.name)
+                  currInsts.remove(s)
+
+              for s in need_cp[:]:
+                if pod_name == s:
+                  time.sleep(1)
+                  mgmt_ip = event['object'].status.pod_ip
+                  lnfvo.store_mgmtaddr(s, mgmt_ip)
+                  lnfvo.fillCPofNF(data['services'], s, mgmt_ip)
+                  need_cp.remove(s)
+
+              wait_deploy.remove(pod_name)
+              if not wait_deploy:
                 w.stop()
 
       response = (f"Deployed: {yaml_data['lnsd']['ns']['name']} as id {deploy_id}", 200)
