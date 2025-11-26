@@ -92,8 +92,9 @@ def deploy_yaml():
           for event in w.stream(func=core_v1.list_namespaced_pod,
                                 namespace=DEFAULT_NAMESPACE,
                                 timeout_seconds=60):
-            if event["object"].status.phase == "Running":
-              pod_name = event['object'].metadata.name.rsplit('-', 2)[0]
+            pod_name = event['object'].metadata.name.rsplit('-', 2)[0]
+            isready = next(filter(lambda x: x.type == "Ready", event['object'].status.conditions), None).status
+            if isready == 'True':
               for s in currInsts[:]:
                 if pod_name == s:
                   lnfvo.startMonitoring(data, s, DEFAULT_NAMESPACE, event['object'].metadata.name)
@@ -101,7 +102,6 @@ def deploy_yaml():
 
               for s in need_cp[:]:
                 if pod_name == s:
-                  time.sleep(1)
                   mgmt_ip = event['object'].status.pod_ip
                   lnfvo.store_mgmtaddr(s, mgmt_ip)
                   lnfvo.fillCPofNF(data['services'], s, mgmt_ip)

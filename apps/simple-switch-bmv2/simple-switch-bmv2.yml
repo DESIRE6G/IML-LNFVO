@@ -26,6 +26,11 @@ spec:
             memory: 4Gi
           requests:
             memory: 4Gi
+        startupProbe:
+          exec:
+            command: [ "/bin/bash", "-c", 'printf "GET / HTTP/1.1\n\n" > /dev/tcp/127.0.0.1/50051 || exit 1' ]
+          periodSeconds: 1
+          failureThreshold: 5
       containers:
       - name: simple-switch-bmv2
         image: desire6g/local-cp:latest
@@ -34,3 +39,8 @@ spec:
           privileged: true
         command: [ "/bin/bash", "-c", "--" ]
         args: [ "trap : TERM INT; sleep infinity & wait" ]
+        startupProbe:
+          exec:
+            command: [ "/bin/bash", "-c", 'printf "GET / HTTP/1.1\n\n" > /dev/tcp/127.0.0.1/5000 || exit 1' ]
+          periodSeconds: 1
+          failureThreshold: 5
