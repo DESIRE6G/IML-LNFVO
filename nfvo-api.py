@@ -30,7 +30,7 @@ def get_next_deploy_id():
 
 @app.route("/iml/yaml/deploy/<id>", methods=["DELETE"])
 def deleteDeployment(id):
-  result = run(['helm', 'uninstall', '--namespace', DEFAULT_NAMESPACE, f'deploy-{id}'], capture_output = True, text = True)
+  result = run(['helm', 'uninstall', '--namespace', DEFAULT_NAMESPACE, f'deploy-{id}', '--wait', '--cascade', 'foreground'], capture_output = True, text = True)
 
   stopAllMonitoring()
 
