@@ -12,6 +12,7 @@ spec:
       labels:
         app: simple-switch-bmv2
     spec:
+      terminationGracePeriodSeconds: 1
       initContainers:
       - name: switch
         image: desire6g/simple-switch-bmv2:latest
