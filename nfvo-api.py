@@ -32,7 +32,7 @@ def get_next_deploy_id():
 def deleteDeployment(id):
   result = run(['helm', 'uninstall', '--namespace', DEFAULT_NAMESPACE, f'deploy-{id}', '--wait', '--cascade', 'foreground'], capture_output = True, text = True)
 
-  stopAllMonitoring()
+  lnfvo.stopAllMonitoring()
 
   if result.stderr:
     return jsonify({"response": result.stderr}), 500
