@@ -76,6 +76,30 @@ spec:
     }'
 {{- end }}
 
+{{/* Generate macvlan */}}
+{{- define "nfrouter.macvlan" }}
+apiVersion: "k8s.cni.cncf.io/v1"
+kind: NetworkAttachmentDefinition
+metadata:
+  name: {{ .id }}
+spec:
+  config: '{
+      "cniVersion": "0.3.0",
+      "plugins": [
+        {
+          "name": "{{ .id }}",
+          "type": "macvlan",
+          "master": "{{ .if.master }}",
+          "mode": "bridge",
+          "ipam": {}
+        }, {
+          "capabilities": { "mac": true },
+          "type": "tuning"
+        }
+      ]
+    }'
+{{- end }}
+
 {{/* Generate kustomization for the interfaces */}}
 {{- define "nfrouter.interfaces-kustomization" }}
 apiVersion: kustomize.config.k8s.io/v1beta1

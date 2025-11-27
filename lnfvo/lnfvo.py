@@ -93,7 +93,7 @@ def addroutetoinit(srcnf, dstnf, dstintf, srcintf, d6g_gw, afids):
     srcnf["initcmd"] += f"ip route add {d6g_gw}/32 dev {srcintf};ip route replace default via {d6g_gw} dev {srcintf};"
     srcnf["initcmd"] = SingleQuotedScalarString(srcnf["initcmd"])
 
-def addif(dic, name, type, ifindex=None, vfname="nvidia.com/cx6dx_vf"):
+def addif(dic, name, type, ifindex=None, vfname="nvidia.com/cx6dx_vf", master=None):
   if f"{name}-{type}-{ifindex}" in dic:
     return
   n = {}
@@ -101,6 +101,8 @@ def addif(dic, name, type, ifindex=None, vfname="nvidia.com/cx6dx_vf"):
   if type == "sriov":
     n["mac"] = SingleQuotedScalarString(generate_mac())
     n["vf"] = SingleQuotedScalarString(vfname)
+  if type == "macvlan":
+    n['master'] = SingleQuotedScalarString(master)
   if type == "memif":
     n["bridgedomain"] = getnextmemifbridgeid()
 
@@ -476,8 +478,13 @@ def addnf(services, nf, domain, gs, name=None, node=None, siteId=None, predeploy
     for i in range(s['instances']):
       if s['static-instance-nodes'][i] == 'external':
         continue
-      addnf(services, {'id': nf['id'], 'instance-id': f"{i}--{nf['instance-id']}", 'parent-instance': nf['instance-id'] }, s['domain'], gs, node=s['static-instance-nodes'][i])
-    # TODO set pod ip?
+      addnf(services, {'id': nf['id'], 'instance-id': f"{i}--{nf['instance-id']}", 'static-ips': [s['static-instance-ips'][i]], 'parent-instance': nf['instance-id'] }, s['domain'], gs, node=s['static-instance-nodes'][i])
+      if s['static-instance-nodes'][i] == s['node']:
+        addtonf(data['services'][f"{i}--{nf['instance-id']}"], f"{nf['instance-id']}-{i}-br-0", f"{nf['instance-id']}-{i}-br-0", ifindex='0', macs={}, ips=data['services'][f"{i}--{nf['instance-id']}"]['ips'])
+      else:
+        addif(data['interfaces'], f"{nf['instance-id']}-{i}", 'macvlan', 0, master="eno1") # TODO: pass this from site-config node
+        addtonf(data['services'][f"{i}--{nf['instance-id']}"], f"{nf['instance-id']}-{i}-macvlan-0", f"{nf['instance-id']}-{i}-macvlan-0", ifindex='0', macs={}, ips=data['services'][f"{i}--{nf['instance-id']}"]['ips'])
+
     setinfranf(s, 'af-selector', 'bmv2')
 
   services[nf['instance-id']] = s
@@ -538,9 +545,9 @@ def addlb_uplink_entry(lbnf):
   }
   addcpentry(lbnf['entries'], entry)
 
-def addlb_instance_entry(nfid, lbnf, instIps, instId):
+def addlb_instance_entry(nfid, lbnf, instIps, instId, type):
   instIp = instIps[instId]
-  instPort = getifindex(lbnf, f'{nfid}-{instId}-br-0') + 1
+  instPort = getifindex(lbnf, f'{nfid}-{instId}-{type}-0') + 1
   entry = {
     "table": "Forwarder",
     "keys": {"instId": instId + 1},
@@ -556,7 +563,6 @@ def store_mgmtaddr(nfid, mgmt_ip):
 def stopAllMonitoring():
   global data
   for s in data['services']:
-    print(s)
     if 'job-id' in s:
       stopMonitoring(s['job-id'])
 
@@ -824,9 +830,17 @@ def generate_values(nsd, path):
       addnf(data['services'], i, i['domain'], gs)
       if data['services'][i['instance-id']].get('is-scalable', False):
         for j in range(data['services'][i['instance-id']]['instances']):
-          addif(data['interfaces'], f"{i['instance-id']}-{j}", 'br', 0)
-          addtonf(data['services'][i['instance-id']], f"{i['instance-id']}-{j}-br-0", f"{i['instance-id']}-{j}-br-0")
-          addlb_instance_entry(i['instance-id'], data['services'][i['instance-id']], data['services'][i['instance-id']]['static-instance-ips'], j)
+
+          if data['services'][i['instance-id']]['static-instance-nodes'][j] == i['node']:
+            addif(data['interfaces'], f"{i['instance-id']}-{j}", 'br', 0)
+            addtonf(data['services'][i['instance-id']], f"{i['instance-id']}-{j}-br-0", f"{i['instance-id']}-{j}-br-0")
+            addlb_instance_entry(i['instance-id'], data['services'][i['instance-id']], data['services'][i['instance-id']]['static-instance-ips'], j, 'br')
+          else:
+            addif(data['interfaces'], f"{i['instance-id']}-{j}", 'macvlan', 0, master="eno1") # TODO: pass this from site-config node
+            addtonf(data['services'][f"{j}--{i['instance-id']}"], f"{i['instance-id']}-{j}-macvlan-0", f"{i['instance-id']}-{j}-macvlan-0")
+            addtonf(data['services'][i['instance-id']], f"{i['instance-id']}-{j}-macvlan-0", f"{i['instance-id']}-{j}-macvlan-0")
+            addlb_instance_entry(i['instance-id'], data['services'][i['instance-id']], data['services'][i['instance-id']]['static-instance-ips'], j, 'macvlan')
+
         set_active_instance(data['services'][i['instance-id']], 0)
 
     for i in predeployed['predeployed-afs']:
@@ -934,8 +948,18 @@ def generate_values(nsd, path):
         if srcnf['domain'] == 'external' and srcnf['site'] is None:
           changenfrtogw(nfrsrc)
           addue2smentries(nfrsrc, srcintf, graph_direction, srcnf, srcifindex, dstnf, dstifindex, g_index, graph_service_id, ueids, data['location-id'])
-          if not srcnf['predeployed'] and not srcnf.get('is-scalable', False):
-            addroutetoinit(srcnf, dstnf, dstintf, srcintf, nfrsrc['ip'], afids if graph_direction == 'upstream' else ueids)
+          if not srcnf['predeployed']:
+            if not srcnf.get('is-scalable', False):
+              addroutetoinit(srcnf, dstnf, dstintf, srcintf, nfrsrc['ip'], afids if graph_direction == 'upstream' else ueids)
+            else:
+              for i in range(srcnf['instances']):
+                if srcnf['static-instance-nodes'][i] == 'external':
+                  continue
+                if srcnf['static-instance-nodes'][i] == srcnf['node']:
+                  addroutetoinit(data['services'][f"{i}--{srcid}"], None, None, f"{srcid}-{i}-br-0", nfrsrc['ip'], afids if graph_direction == 'upstream' else ueids)
+                else:
+                  addiptoinit(srcnf, srcnf['ips'][str(i)], f"{srcid}-{i}-macvlan-0", None, None)
+                  addroutetoinit(data['services'][f"{i}--{srcid}"], None, None, f"{srcid}-{i}-macvlan-0", srcnf['ips'][str(i)], afids if graph_direction == 'upstream' else ueids)
 
         if srcnf.get('is-scalable', False):
           addlb_uplink_entry(srcnf)
@@ -1016,7 +1040,7 @@ def getNFCPstofill(data):
   return need_cp
 
 def fillCPofNF(services, nfid, mgmt_ip, mgmt_port=5000):
-  print(nfid)
+  print('filing cp of:', nfid)
 
   for e in services[nfid]['entries']:
     print(e)
