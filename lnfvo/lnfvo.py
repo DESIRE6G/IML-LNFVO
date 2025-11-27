@@ -7,6 +7,7 @@ import random
 import requests
 import time
 from subprocess import run
+from ipaddress import IPv4Network
 #from yaml_patch import patch_yaml
 
 nfrouter_mode = 't4p4s'
@@ -472,7 +473,13 @@ def addnf(services, nf, domain, gs, name=None, node=None, siteId=None, predeploy
     s['parent-instance'] = nf['parent-instance']
   if s['is-scalable']:
     s['instances'] = nf['instances']
-    s['static-instance-ips'] = nf['static-instance-ips']
+    if 'static-instance-ips' in nf:
+      s['static-instance-ips'] = nf['static-instance-ips']
+    else:
+      s['static-instance-ips'] = []
+      for i in range(s['instances']):
+        s['static-instance-ips'].append(str(next(data['macvlan-subnet'])))
+
     s['static-instance-nodes'] = nf['static-instance-nodes']
     s['current-instance'] = 0
     for i in range(s['instances']):
@@ -482,7 +489,7 @@ def addnf(services, nf, domain, gs, name=None, node=None, siteId=None, predeploy
       if s['static-instance-nodes'][i] == s['node']:
         addtonf(data['services'][f"{i}--{nf['instance-id']}"], f"{nf['instance-id']}-{i}-br-0", f"{nf['instance-id']}-{i}-br-0", ifindex='0', macs={}, ips=data['services'][f"{i}--{nf['instance-id']}"]['ips'])
       else:
-        addif(data['interfaces'], f"{nf['instance-id']}-{i}", 'macvlan', 0, master="eno1") # TODO: pass this from site-config node
+        addif(data['interfaces'], f"{nf['instance-id']}-{i}", 'macvlan', 0, master=data["nodes"][s['static-instance-nodes'][i]]['macvlan-master'])
         addtonf(data['services'][f"{i}--{nf['instance-id']}"], f"{nf['instance-id']}-{i}-macvlan-0", f"{nf['instance-id']}-{i}-macvlan-0", ifindex='0', macs={}, ips=data['services'][f"{i}--{nf['instance-id']}"]['ips'])
 
     setinfranf(s, 'af-selector', 'bmv2')
@@ -523,9 +530,14 @@ def parse_siteconfig(path):
       for i in sconfig['predeployed-tas']:
         addsite(predeployed['sites'], i)
 
+      if 'macvlan-subnet' in sconfig:
+        predeployed['macvlan-subnet'] = iter(IPv4Network(sconfig['macvlan-subnet']))
+
       predeployed['nodes'] = {}
       for i in sconfig['nodes']:
         node = {}
+        if 'macvlan-master' in i:
+          node['macvlan-master'] = i['macvlan-master']
         node['sriov-capable'] = i['sriov-capable']
         if node['sriov-capable']:
           node['sriov-vf-name'] = i['sriov-vf-name']
@@ -568,7 +580,6 @@ def stopAllMonitoring():
 
 def stopMonitoring(jobid):
   global data
-  # kikeresni azokat a job id-ket amik el vannak tarolva es deaktivalni oket
   url = f"http://{data['monitoring-ip']}:{data['monitoring-port']}/Forecasting/deactivateJob/{jobid}"
   try:
     reply = requests.put(url)
@@ -819,6 +830,8 @@ def generate_values(nsd, path):
     data['default-nfr-mode'] = nsd['lnsd']['ns']['default-nfrouter-mode']
     data['default-interpod-mode'] = nsd['lnsd']['ns']['default-interpod-mode']
     gs = len(nsd['lnsd']['ns']['forwarding_graphs'])
+    data['nodes'] = predeployed['nodes']
+    data['macvlan-subnet'] = predeployed['macvlan-subnet']
 
     for i in nsd['lnsd']['ns']['network-functions']:
       addnf(data['services'], i, 'internal', gs)
@@ -836,7 +849,6 @@ def generate_values(nsd, path):
             addtonf(data['services'][i['instance-id']], f"{i['instance-id']}-{j}-br-0", f"{i['instance-id']}-{j}-br-0")
             addlb_instance_entry(i['instance-id'], data['services'][i['instance-id']], data['services'][i['instance-id']]['static-instance-ips'], j, 'br')
           else:
-            addif(data['interfaces'], f"{i['instance-id']}-{j}", 'macvlan', 0, master="eno1") # TODO: pass this from site-config node
             addtonf(data['services'][f"{j}--{i['instance-id']}"], f"{i['instance-id']}-{j}-macvlan-0", f"{i['instance-id']}-{j}-macvlan-0")
             addtonf(data['services'][i['instance-id']], f"{i['instance-id']}-{j}-macvlan-0", f"{i['instance-id']}-{j}-macvlan-0")
             addlb_instance_entry(i['instance-id'], data['services'][i['instance-id']], data['services'][i['instance-id']]['static-instance-ips'], j, 'macvlan')
@@ -855,7 +867,6 @@ def generate_values(nsd, path):
       data['interfaces'][i['id']] = i
 
     data['sites'] = predeployed['sites']
-    data['nodes'] = predeployed['nodes']
 
     for s in nsd['lnsd']['ns']['site-connections']:
       if s['id'] not in data['sites']:
@@ -958,8 +969,9 @@ def generate_values(nsd, path):
                 if srcnf['static-instance-nodes'][i] == srcnf['node']:
                   addroutetoinit(data['services'][f"{i}--{srcid}"], None, None, f"{srcid}-{i}-br-0", nfrsrc['ip'], afids if graph_direction == 'upstream' else ueids)
                 else:
-                  addiptoinit(srcnf, srcnf['ips'][str(i)], f"{srcid}-{i}-macvlan-0", None, None)
-                  addroutetoinit(data['services'][f"{i}--{srcid}"], None, None, f"{srcid}-{i}-macvlan-0", srcnf['ips'][str(i)], afids if graph_direction == 'upstream' else ueids)
+                  ip = str(next(data['macvlan-subnet']))
+                  addiptoinit(srcnf, ip, f"{srcid}-{i}-macvlan-0", None, None)
+                  addroutetoinit(data['services'][f"{i}--{srcid}"], None, None, f"{srcid}-{i}-macvlan-0", ip, afids if graph_direction == 'upstream' else ueids)
 
         if srcnf.get('is-scalable', False):
           addlb_uplink_entry(srcnf)
