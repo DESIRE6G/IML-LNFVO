@@ -24,6 +24,10 @@ def insertTableEntry(sh, parameters):
 
     for k, v in parameters["keys"].items():
       te.match[k] = str(v)
+
+    if 'priority' in parameters["parameters"]:
+        te.priority = priority
+
     for k, v in parameters["actionParameters"].items():
       te.action[k] = str(v)
 

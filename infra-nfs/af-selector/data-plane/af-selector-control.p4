@@ -24,13 +24,14 @@ control AFLB(
 
     table InstanceSelector {
         key = {
-            hdr.ipv4.dstAddr : exact;
+            hdr.ipv4.srcAddr : ternary;
+            hdr.ipv4.dstAddr : ternary;
         }
         actions = {
-            setInstance;
+            setInstance;drop;
         }
         size = 1000;
-        default_action = setInstance(0);
+        default_action = drop;
     }
 
     action forwardToInstance(bit<9> port, bit<32> instIp) {
@@ -58,6 +59,8 @@ control AFLB(
         if (hdr.ipv4.isValid()) {
             InstanceSelector.apply();
             Forwarder.apply();
+        } else {
+            drop();
         }
     }
 }

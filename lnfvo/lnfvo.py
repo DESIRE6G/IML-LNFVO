@@ -584,29 +584,42 @@ def set_scalable_instance(serviceId, jobId):
   parentNF = data['services'][parentNFId]
   parentNF['current-instance'] = (parentNF['current-instance'] + 1) % parentNF['instances']
 
-  entry = {
-    "table": "InstanceSelector",
-    "keys": {"dstAddr": parentNF['ips']['0']},
-    "action": "setInstance",
-    "actionParameters": {"instId": parentNF['current-instance']+1}
-  }
   mgmt_ip = parentNF['mgmt_ip']
   mgmt_port = 5000
-
   url = f'http://{mgmt_ip}:{mgmt_port}/api/tables/'
+
+  entry = {
+    "table": "InstanceSelector",
+    "keys": {"dstAddr": f"{parentNF['ips']['0']} &&& 0xFFFFFFFF"},
+    "action": "setInstance",
+    "actionParameters": {"instId": parentNF['current-instance']+1},
+    "priority": 10,
+  }
   x = requests.post(url, json = entry)
   if x.status_code != 200:
     raise Exception(f"Controlplane error: {x.json()}")
+
   return(f"Current instance changed to: {parentNF['current-instance']}")
 
 def set_active_instance(lbnf, instId):
   entry = {
     "table": "InstanceSelector",
-    "keys": {"dstAddr": lbnf['ips']['0']},
+    "keys": {"dstAddr": f"{lbnf['ips']['0']} &&& 0xFFFFFFFF"},
     "action": "setInstance",
-    "actionParameters": {"instId": instId+1}
+    "actionParameters": {"instId": instId+1},
+    "priority": 10,
   }
   addcpentry(lbnf['entries'], entry)
+
+  for i in range(lbnf['instances']):
+      entry = {
+        "table": "InstanceSelector",
+        "keys": {"srcAddr": f"{lbnf['static-instance-ips'][i]} &&& 0xFFFFFFFF"},
+        "action": "setInstance",
+        "actionParameters": {"instId": 0},
+        "priority": i+1,
+      }
+      addcpentry(lbnf['entries'], entry)
 
 def add_int_entries(nfr, serviceId):
   if nfr.get('int-collector', False):
