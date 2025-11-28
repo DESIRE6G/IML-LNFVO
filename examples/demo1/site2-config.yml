@@ -13,12 +13,20 @@ interfaces:
     type: tofino
     port: 8 # 55
 
+macvlan-subnet: "10.30.7.220/30"
+
 nodes:
   - id: "t2"
     sriov-capable: false
   - id: "p42"
     sriov-capable: true
     sriov-vf-name: "nvidia.com/cx5_vf"
+  - id: "orin3"
+    sriov-capable: false
+    macvlan-master: "eno1"
+  - id: "ubuntu"
+    sriov-capable: false
+    macvlan-master: "eno1"
 
 predeployed-nfrs:
   - instance-id: "nfr-t2"

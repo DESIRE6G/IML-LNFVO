@@ -102,7 +102,7 @@ def addif(dic, name, type, ifindex=None, vfname="nvidia.com/cx6dx_vf", master=No
   if type == "sriov":
     n["mac"] = SingleQuotedScalarString(generate_mac())
     n["vf"] = SingleQuotedScalarString(vfname)
-  if type == "macvlan":
+  if type == "mv": #macvlan
     n['master'] = SingleQuotedScalarString(master)
   if type == "memif":
     n["bridgedomain"] = getnextmemifbridgeid()
@@ -435,6 +435,8 @@ def encodenfidport(nfid: int, port: int):
   return (nfid << 8) + port
 
 def addnf(services, nf, domain, gs, name=None, node=None, siteId=None, predeployed=False):
+  if nf['instance-id'] in services:
+    return
   s = {}
   s['name'] = nf['id'] if name is None else name
   s['node'] = nf['node'] if node is None else node
@@ -489,8 +491,8 @@ def addnf(services, nf, domain, gs, name=None, node=None, siteId=None, predeploy
       if s['static-instance-nodes'][i] == s['node']:
         addtonf(data['services'][f"{i}--{nf['instance-id']}"], f"{nf['instance-id']}-{i}-br-0", f"{nf['instance-id']}-{i}-br-0", ifindex='0', macs={}, ips=data['services'][f"{i}--{nf['instance-id']}"]['ips'])
       else:
-        addif(data['interfaces'], f"{nf['instance-id']}-{i}", 'macvlan', 0, master=data["nodes"][s['static-instance-nodes'][i]]['macvlan-master'])
-        addtonf(data['services'][f"{i}--{nf['instance-id']}"], f"{nf['instance-id']}-{i}-macvlan-0", f"{nf['instance-id']}-{i}-macvlan-0", ifindex='0', macs={}, ips=data['services'][f"{i}--{nf['instance-id']}"]['ips'])
+        addif(data['interfaces'], f"{nf['instance-id']}-{i}", 'mv', 0, master=data["nodes"][s['static-instance-nodes'][i]]['macvlan-master'])
+        addtonf(data['services'][f"{i}--{nf['instance-id']}"], f"{nf['instance-id']}-{i}-mv-0", f"{nf['instance-id']}-{i}-mv-0", ifindex='0', macs={}, ips=data['services'][f"{i}--{nf['instance-id']}"]['ips'])
 
     setinfranf(s, 'af-selector', 'bmv2')
 
@@ -831,13 +833,17 @@ def generate_values(nsd, path):
     data['default-interpod-mode'] = nsd['lnsd']['ns']['default-interpod-mode']
     gs = len(nsd['lnsd']['ns']['forwarding_graphs'])
     data['nodes'] = predeployed['nodes']
-    data['macvlan-subnet'] = predeployed['macvlan-subnet']
+    if 'macvlan-subnet' in predeployed:
+      data['macvlan-subnet'] = predeployed['macvlan-subnet']
 
     for i in nsd['lnsd']['ns']['network-functions']:
       addnf(data['services'], i, 'internal', gs)
 
     for i in predeployed['predeployed-nfs']:
       addnf(data['services'], i, 'internal', gs, 'unmanaged')
+
+    for i in predeployed['predeployed-afs']:
+      addnf(data['services'], i, i['domain'], gs, 'unmanaged')
 
     for i in nsd['lnsd']['ns']['application-functions']:
       addnf(data['services'], i, i['domain'], gs)
@@ -849,14 +855,11 @@ def generate_values(nsd, path):
             addtonf(data['services'][i['instance-id']], f"{i['instance-id']}-{j}-br-0", f"{i['instance-id']}-{j}-br-0")
             addlb_instance_entry(i['instance-id'], data['services'][i['instance-id']], data['services'][i['instance-id']]['static-instance-ips'], j, 'br')
           else:
-            addtonf(data['services'][f"{j}--{i['instance-id']}"], f"{i['instance-id']}-{j}-macvlan-0", f"{i['instance-id']}-{j}-macvlan-0")
-            addtonf(data['services'][i['instance-id']], f"{i['instance-id']}-{j}-macvlan-0", f"{i['instance-id']}-{j}-macvlan-0")
-            addlb_instance_entry(i['instance-id'], data['services'][i['instance-id']], data['services'][i['instance-id']]['static-instance-ips'], j, 'macvlan')
+            addtonf(data['services'][f"{j}--{i['instance-id']}"], f"{i['instance-id']}-{j}-mv-0", f"{i['instance-id']}-{j}-mv-0")
+            addtonf(data['services'][i['instance-id']], f"{i['instance-id']}-{j}-mv-0", f"{i['instance-id']}-{j}-mv-0")
+            addlb_instance_entry(i['instance-id'], data['services'][i['instance-id']], data['services'][i['instance-id']]['static-instance-ips'], j, 'mv')
 
         set_active_instance(data['services'][i['instance-id']], 0)
-
-    for i in predeployed['predeployed-afs']:
-      addnf(data['services'], i, i['domain'], gs, 'unmanaged')
 
     for i in predeployed['predeployed-nfrs']:
       addnfr(data['services'], i['node'], predeployed['predeployed-nfrs'], True)
@@ -970,8 +973,8 @@ def generate_values(nsd, path):
                   addroutetoinit(data['services'][f"{i}--{srcid}"], None, None, f"{srcid}-{i}-br-0", nfrsrc['ip'], afids if graph_direction == 'upstream' else ueids)
                 else:
                   ip = str(next(data['macvlan-subnet']))
-                  addiptoinit(srcnf, ip, f"{srcid}-{i}-macvlan-0", None, None)
-                  addroutetoinit(data['services'][f"{i}--{srcid}"], None, None, f"{srcid}-{i}-macvlan-0", ip, afids if graph_direction == 'upstream' else ueids)
+                  addiptoinit(srcnf, ip, f"{srcid}-{i}-mv-0", None, None)
+                  addroutetoinit(data['services'][f"{i}--{srcid}"], None, None, f"{srcid}-{i}-mv-0", ip, afids if graph_direction == 'upstream' else ueids)
 
         if srcnf.get('is-scalable', False):
           addlb_uplink_entry(srcnf)
@@ -987,6 +990,8 @@ def generate_values(nsd, path):
       elif nf_memif_setup:
         n['cmd'] += 'sleep infinity;'
 
+    if 'macvlan-subnet' in data:
+      del data['macvlan-subnet']
     data['unmanaged'] = {}
     cleanintf(data['services'], data['unmanaged'])
     for i in predeployed['interfaces']:

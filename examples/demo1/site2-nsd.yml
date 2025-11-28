@@ -18,7 +18,7 @@ lnsd:
         application-functions:
           - instance-id: "ran"
             static-nfids: [42,43]
-            static-ips: ["10.10.10.44"]
+            static-ips: ["192.168.1.4"]
             is-ue: true
         network-functions: []
 
@@ -29,11 +29,9 @@ lnsd:
         version: "1.0"
         domain: "external"
         static-nfids: [44,45]
-        static-macs: ["02:22:33:44:55:99"]
-        static-ips: ["10.30.7.200", "10.30.7.203"]
+        static-ips: ["10.30.7.213"]
         is-scalable: true
         instances: 2
-        static-instance-ips: ["10.30.7.201", "10.30.7.202"]
 
     forwarding_graphs:
       - graph-name: "upstream"
@@ -41,12 +39,12 @@ lnsd:
         links:
           - id: "upstream-1"
             connection-points:
-            - if-id-ref: "ran:0"
-            - if-id-ref: "app:0"
+              - if-id-ref: "ran:0"
+              - if-id-ref: "app:0"
       - graph-name: "downstream"
         direction: "downstream"
         links:
           - id: "downstream-1"
             connection-points:
-            - if-id-ref: "app:0"
-            - if-id-ref: "ran:0"
+              - if-id-ref: "app:0"
+              - if-id-ref: "ran:0"
