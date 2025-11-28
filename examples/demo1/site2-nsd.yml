@@ -1,7 +1,7 @@
 lnsd:
   ns-instance-id: "55667788"
   ns:
-    name: "Demo1 scenario"
+    name: "ARVR demo1"
     id: "ccccdddd"
     vendor: "D6G"
     descriptor-version: "1.0"
@@ -16,16 +16,16 @@ lnsd:
     site-connections:
       - id: "site1"
         application-functions:
-          - instance-id: "ran"
+          - instance-id: "src"
             static-nfids: [42,43]
             static-ips: ["192.168.1.4"]
             is-ue: true
         network-functions: []
 
     application-functions:
-      - instance-id: "app"
+      - instance-id: "edge"
         id: "iperf3"
-        name: "Pkt destination"
+        name: "AR edge app"
         version: "1.0"
         domain: "external"
         static-nfids: [44,45]
@@ -39,12 +39,12 @@ lnsd:
         links:
           - id: "upstream-1"
             connection-points:
-              - if-id-ref: "ran:0"
-              - if-id-ref: "app:0"
+              - if-id-ref: "src:0"
+              - if-id-ref: "edge:0"
       - graph-name: "downstream"
         direction: "downstream"
         links:
           - id: "downstream-1"
             connection-points:
-              - if-id-ref: "app:0"
-              - if-id-ref: "ran:0"
+              - if-id-ref: "edge:0"
+              - if-id-ref: "src:0"

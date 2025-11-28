@@ -1,11 +1,10 @@
-lnsd:
+nsd:
   ns-instance-id: "11223344"
   ns:
-    name: "ARVR demo1"
+    name: "ARVR demo"
     id: "aaaabbbb"
     vendor: "D6G"
     descriptor-version: "1.0"
-    site-id: "site1"
     location-id: 40
     default-service-id: "30"
     default-nfrouter-mode: "bmv2"
@@ -14,6 +13,16 @@ lnsd:
     infra-nfs: []
     network-functions: []
     application-functions:
+      - instance-id: "edge"
+        id: "iperf3"
+        name: "AR edge app"
+        version: "1.0"
+        domain: "external"
+        static-nfids: [44,45]
+        static-ips: ["10.30.7.213"]
+        is-scalable: true
+        instances: 2
+
       - instance-id: "src"
         id: "iperf3"
         name: "AR source app"
@@ -22,13 +31,6 @@ lnsd:
         is-ue: true
         static-nfids: [42, 43]
         static-ips: ["192.168.1.4"]
-
-    site-connections:
-      - id: "site2"
-        application-functions:
-          - instance-id: "edge"
-            static-nfids: [44,45]
-        network-functions: []
 
     forwarding_graphs:
       - graph-name: "upstream"

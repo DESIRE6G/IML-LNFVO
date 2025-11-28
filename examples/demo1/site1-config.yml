@@ -2,7 +2,7 @@ listening-port: 6000
 SMO-ip: 127.0.0.1
 SMO-port: 5000
 interfaces:
-  - id: ran-br-0
+  - id: src-br-0
     type: tofino
     port: 156 # 49
 
@@ -21,7 +21,7 @@ predeployed-nfrs:
     controlplane-port: "5555"
     static-mac: "02:33:44:55:66:77"
     int-enabled: true
-    interfaces: ["ran-br-0", "site1-site2-0"]
+    interfaces: ["src-br-0", "site1-site2-0"]
 
 predeployed-tas:
   - id: "site2"
@@ -33,12 +33,14 @@ predeployed-tas:
 predeployed-nfs: []
 
 predeployed-afs:
-  - instance-id: "ran"
-    name: "ran"
+  - instance-id: "src"
+    id: "iperf3"
+    name: "AR source app"
     version: "1.0"
     node: "t1"
     domain: "internal"
     is-ue: true
     static-nfids: [42, 43]
     static-macs: ["02:22:33:44:55:66"]
+    static-ips: ["192.168.1.4"]
 
