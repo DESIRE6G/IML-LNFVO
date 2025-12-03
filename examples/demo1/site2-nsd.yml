@@ -16,7 +16,7 @@ lnsd:
     site-connections:
       - id: "site1"
         application-functions:
-          - instance-id: "src"
+          - instance-id: "ran"
             static-nfids: [42,43]
             static-ips: ["192.168.1.4"]
             is-ue: true

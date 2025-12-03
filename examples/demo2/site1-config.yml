@@ -4,11 +4,15 @@ SMO-port: 5000
 interfaces:
   - id: ran-br-0
     type: tofino
-    port: 39
+    port: 156
+
+  - id: ran-br-1
+    type: tofino
+    port: 156
 
   - id: t1-xtreme-0
     type: tofino
-    port: 50
+    port: 142
 
 nodes:
   - id: "t1"
@@ -20,22 +24,20 @@ nodes:
 predeployed-nfrs:
   - instance-id: "nfr-t1"
     node: "t1"
-    controlplane-ip: "10.30.7.12"
+    controlplane-ip: "10.5.15.2"
     controlplane-port: "5555"
     static-mac: "02:33:44:55:66:77"
-    int-enabled: true
-    interfaces: ["ran-br-0", "t1-xtreme-0"]
+    interfaces: ["ran-br-0", "ran-br-1", "t1-epyc1-0"]
 
 predeployed-tas: []
 predeployed-nfs: []
 
 predeployed-afs:
   - instance-id: "ran"
-    name: "ran"
+    name: "RAN"
     version: "1.0"
     node: "t1"
     domain: "external"
     is-ue: true
-    static-nfids: [31, 41]
-    static-macs: ["02:22:33:44:55:66"]
-    static-ips: ["10.3.202.5"]
+    static-ips: ["172.20.50.7", "172.20.50.8"]
+    extra-ueids: [[], ["172.20.50.9"]]

@@ -14,7 +14,7 @@ lnsd:
     infra-nfs: []
     network-functions: []
     application-functions:
-      - instance-id: "src"
+      - instance-id: "ran"
         id: "iperf3"
         name: "AR source app"
         version: "1.0"
@@ -36,7 +36,7 @@ lnsd:
         links:
           - id: "upstream-1"
             connection-points:
-            - if-id-ref: "src:0"
+            - if-id-ref: "ran:0"
             - if-id-ref: "edge:0"
       - graph-name: "downstream"
         direction: "downstream"
@@ -44,4 +44,4 @@ lnsd:
           - id: "downstream-1"
             connection-points:
             - if-id-ref: "edge:0"
-            - if-id-ref: "src:0"
+            - if-id-ref: "ran:0"

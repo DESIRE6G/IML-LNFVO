@@ -1,0 +1,26 @@
+lnsd:
+  ns-instance-id: "11223344"
+  ns:
+    name: "ARVR demo1"
+    id: "aaaabbbb"
+    vendor: "D6G"
+    descriptor-version: "1.0"
+    site-id: "site0"
+    location-id: 40
+    default-service-id: "30"
+    default-nfrouter-mode: "bmv2"
+    default-interpod-mode: 'br'
+
+    infra-nfs: []
+    network-functions: []
+    application-functions:
+      - instance-id: "src"
+        id: "iperf3"
+        name: "AR source app"
+        version: "1.0"
+        domain: "external"
+        is-ue: true
+
+    site-connections: []
+
+    forwarding_graphs: []

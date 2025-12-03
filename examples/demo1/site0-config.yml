@@ -1,0 +1,22 @@
+listening-port: 6002
+SMO-ip: 127.0.0.1
+SMO-port: 5000
+interfaces: []
+
+nodes: []
+
+predeployed-nfrs: []
+
+predeployed-tas: []
+
+predeployed-nfs: []
+
+predeployed-afs:
+  - instance-id: "src"
+    id: "iperf3"
+    name: "AR source app"
+    version: "1.0"
+    domain: "external"
+    is-ue: true
+    node: "predeployed"
+

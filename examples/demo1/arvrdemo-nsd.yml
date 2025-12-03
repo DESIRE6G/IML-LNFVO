@@ -27,6 +27,13 @@ nsd:
         id: "iperf3"
         name: "AR source app"
         version: "1.0"
+        domain: "external"
+        is-ue: true
+
+      - instance-id: "ran"
+        id: "iperf3"
+        name: "RAN"
+        version: "1.0"
         domain: "internal"
         is-ue: true
         static-nfids: [42, 43]
@@ -38,7 +45,7 @@ nsd:
         links:
           - id: "upstream-1"
             connection-points:
-            - if-id-ref: "src:0"
+            - if-id-ref: "ran:0"
             - if-id-ref: "edge:0"
       - graph-name: "downstream"
         direction: "downstream"
@@ -46,4 +53,4 @@ nsd:
           - id: "downstream-1"
             connection-points:
             - if-id-ref: "edge:0"
-            - if-id-ref: "src:0"
+            - if-id-ref: "ran:0"
