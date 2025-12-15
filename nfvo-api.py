@@ -93,23 +93,27 @@ def deploy_yaml():
                                 namespace=DEFAULT_NAMESPACE,
                                 timeout_seconds=60):
             pod_name = event['object'].metadata.name.rsplit('-', 2)[0]
-            isready = next(filter(lambda x: x.type == "Ready", event['object'].status.conditions), None).status
-            if isready == 'True':
-              for s in currInsts[:]:
-                if pod_name == s:
-                  lnfvo.startMonitoring(data, s, DEFAULT_NAMESPACE, event['object'].metadata.name)
-                  currInsts.remove(s)
+            if event['object'].status.conditions:
+              isready = next(filter(lambda x: x.type == "Ready", event['object'].status.conditions), None).status
+              if isready == 'True':
+                for s in currInsts[:]:
+                  if pod_name == s:
+                    lnfvo.startMonitoring(data, s, DEFAULT_NAMESPACE, event['object'].metadata.name)
+                    currInsts.remove(s)
 
-              for s in need_cp[:]:
-                if pod_name == s:
-                  mgmt_ip = event['object'].status.pod_ip
-                  lnfvo.store_mgmtaddr(s, mgmt_ip)
-                  lnfvo.fillCPofNF(data['services'], s, mgmt_ip)
-                  need_cp.remove(s)
+                for s in need_cp[:]:
+                  if pod_name == s:
+                    mgmt_ip = event['object'].status.pod_ip
+                    lnfvo.store_mgmtaddr(s, mgmt_ip)
+                    lnfvo.fillCPofNF(data['services'], s, mgmt_ip)
+                    need_cp.remove(s)
 
-              wait_deploy.remove(pod_name)
-              if not wait_deploy:
-                w.stop()
+                wait_deploy.remove(pod_name)
+                if not wait_deploy:
+                  w.stop()
+
+      if wait_deploy:
+        raise Exception(f"Error: error during CP filling")
 
       response = (f"Deployed: {yaml_data['lnsd']['ns']['name']} as id {deploy_id}", 200)
 
