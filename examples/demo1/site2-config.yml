@@ -9,7 +9,7 @@ interfaces:
     type: tofino
     port: 32 # 53
 
-  - id: t2-p42-br-0
+  - id: t2-p42-0
     type: tofino
     port: 8 # 55
 
@@ -37,7 +37,7 @@ predeployed-nfrs:
     int-enabled: true
     int-collector: true
     int-mirror-session: 100
-    interfaces: ["site2-site1-0", "t2-p42-br-0"]
+    interfaces: ["site2-site1-0", "t2-p42-0"]
 
 predeployed-tas:
   - id: "site1"
